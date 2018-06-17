@@ -1,0 +1,169 @@
+---
+title: "Fifth Week: Bootstrap and Resampling Methods"
+subtitle: "Nonparametric Hypothesis tests"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+> <p dir="RTL"> 
+لطفا با سوالات زیر پاسخ دهید.
+در همه سوالات سطح دقت را ۹۵ درصد در نظر بگیرید.
+</p>
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+library(dplyr)
+library(tidyr)
+stores <- c(102, 300, 102, 100, 205, 105, 71, 92)
+chisq.test(stores) #amalkard yeksan nist
+
+```
+<p dir="RTL">
+۱. فرض صفر برابر با برابر بودن عملکرد پایین است. همانطور که مشاهده میشود میتوانیم با اطمینان فرض صفر را رد کنیم.
+</p>
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+mydata = data.frame(score = c(50, 50, 60, 70, 75, 80, 90, 85,55, 75, 80, 90, 105, 65 ),
+                    stores = factor(c(rep("classical Stores",8), rep("modernStores",6))))
+
+classicalStores <- c(50, 50, 60, 70, 75, 80, 90, 85)
+modernStores <- c(55, 75, 80, 90, 105, 65)
+
+perm::permTS(classicalStores, modernStores) #0.40
+
+```
+<p dir="RTL">
+۲.فرض صفر عبارت است از یکسان بودن عملکرد دو نوع شعبه.
+چون p-value > 0.05 نمیتوانیم فرض صفر را رد کنیم.
+</p>
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+
+before <- c(509, 517, 502, 629, 830, 911, 847, 803, 727, 853, 757, 730, 774, 718, 904)
+
+after <- c(517, 508, 523, 730, 821, 940, 818, 821, 842, 842, 709, 688, 787, 780, 901)
+
+
+wilcox.test(before, after, alternative = "less", paired = TRUE)
+
+
+
+```
+<p dir="RTL">
+۳.
+فرض صفر را برابر با عملکرد ضعیف تر بعد از تبلیغات در نظر گرفتم. مشخص است که نمیتوان فرض صفر را رد کرد و دلیلی برای پذیرفت عملکرد بهتر پس از تبلیغات نداریم.
+</p>
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+
+white = c(510, 720, 930, 754, 105)
+blue = c(925, 735, 753, 685)
+red = c(730, 745, 875, 610)
+
+
+
+colorData = data.frame(score = c(510, 720, 930, 754, 105, 925, 735, 753, 685,730, 745, 875, 610),
+                    colors = factor(c(rep("white",5), rep("blue",4), rep("red", 4))))
+
+
+kruskal.test(data = colorData, score~colors)
+
+
+```
+<p dir="RTL">
+۴. فرض صفر برابر است با تاثیر نداشتن رنگ بر روی فروش محصولات. با انجام تست نتیجه میگیرم که نمیتوانیم فرض صفر را رد کنیم.
+</p>
+
+| Store | White | Blue | Red |
+| :----: | :----: | :----: | :----: |
+| 1. |	510 |	925 |	730 |
+| 2. | 720 | 735 | 745 |
+| 3. |	930 |	753 |	875 |
+| 4. |	754 |	685 |	610 |
+| 5. |	105	|  |  |
+
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+tv <- read.csv("tv.csv")
+tv %>% gather(key = "month", value = "nazar") -> tv_gathered
+friedman.test(cbind(tv$March, tv$April, tv$May, tv$Jun)) #rabt nadashtano natoonestin rad konim
+
+```
+<p dir="RTL">
+۵.فرض صفر را برابر با بی تاثیر بودن تبلیغات در نظر گرفتیم. چون p-value > 0.05 نمیتوانیم فرضصفر را رد کنیم.
+</p>
+
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+mat = matrix(data = c(151, 802, 753, 252, 603, 55, 603, 405, 408), nrow = 3 , ncol = 3)
+rownames(mat) = c("Small", "Medium", "Large" )
+colnames(mat) = c("Always" , "Sometime", "Never")
+
+chisq.test(mat) #kheili rabt daran
+
+
+
+```
+<p dir="RTL"> 
+۶. فرض صفر را برابر با استقلال جمعیت شهر با توع میزان مصرف محصولات در نظر گرفتیم.
+</p>
+
+<p dir="RTL"> 
+p-value مربوطه بسیار کوچک تر از 0.05 میباشد پس با اطمینان فرض صفر را رد کرده و تاثیر جمعیت شهر را بر روی نوع میزان مصرف محصولات میپذیریم.
+</p>
+
+
+
+| City size |	| Frequency of service usage | |
+| :---: |  :---:  | :---: | :---: | 
+| | Always	| Sometime | Never |
+| Small	| 151	| 252	| 603 |
+| Medium	| 802	| 603	| 405 |
+| Large	| 753	| 55	| 408 |
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+
+consumption <- read.csv("consumption.csv")
+cor.test(consumption$A, consumption$B, method = "spearman") # there is no relationship
+```
+<p dir="RTL"> 
+۷.فرض صفر در این سوال بی تاثیر بودن فروش محصول دوم بر روی محصول اول است. مشاهده میشود که نمیتوانیم این فرض را رد کنیم.
+</p>
+
+***
+```{r echo = FALSE,include=TRUE,warning=FALSE, error=FALSE,message=FALSE}
+
+
+mat <- matrix(data = c(301, 353, 558, 502, 155, 153), nrow = 3 , ncol = 2)
+rownames(mat) <- c("Price", "Design", "Color" )
+colnames(mat) <- c("Male" , "Female")
+
+
+chisq.test(mat) #darad
+
+
+
+```
+<p dir="RTL"> 
+۸. همانند سوال 6، فرض صفر برابر با استقلال مشخصه کاربری کالا با جنسیت است.
+چون p-value < 0.05  این استقلال متغیر ها را رد کرده و فرض یک که برابر با تاثیر جنسیت بر مشخصه کاربری کالا است میپذیریم.
+</p>
+
+| Characteristics	| Male	| Female |
+| :---: |  :---:  | :---: |
+| Price	| 301	| 502 |
+| Design	| 353	| 155 |
+| Color	| 558	| 153 |
+
+
+

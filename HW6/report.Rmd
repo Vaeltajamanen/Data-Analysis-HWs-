@@ -1,0 +1,287 @@
+---
+title: "Sixth Week: Linear Models"
+subtitle: "House price prediction"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+
+***
+```{r echo = T, include=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+library(readr)
+library(highcharter)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(HistData)
+library(Hmisc)
+library(checkmate)
+library(corrplot)
+library("ggthemes")
+library("scales")
+library(car)
+
+dic_var <- read_delim("dictionnaire_variables.csv", delim = ";")
+house <- read_csv("train.csv")
+dic_nvx <- read_csv("dictionnaire_niveaux.csv")
+
+#function
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  = (cormat)[ut],
+    p = pmat[ut]
+  )
+}
+
+
+
+```
+<p dir="RTL">
+```{r echo = T, include=FALSE, error=FALSE, message=F, warning=FALSE}
+Filter(is.numeric, house) -> numeric_house
+
+
+cor(numeric_house, method = c("pearson", "kendall", "spearman")) -> house_corr
+
+
+as.data.frame(house_corr) -> house_corr
+
+
+as.matrix(numeric_house) -> num_house
+rcorr(num_house) -> house_corr_2
+
+as.data.frame(house_corr_2$r) -> correlations
+
+as.data.frame(house_corr_2$P) -> pValues
+
+flattenCorrMatrix(correlations, pValues) -> corr_and_pValues
+
+as.matrix(correlations) -> cor_plot
+
+corrplot(
+  cor_plot,
+  type = "upper",
+  order = "hclust",
+  tl.col = "black",
+  tl.srt = 45
+)
+
+
+corr_and_pValues %>% filter(column == "SalePrice") -> price_correlation
+
+price_correlation %>% arrange(desc(cor)) %>% head(10) -> price_high_cor
+
+
+
+```
+</p>
+
+***
+
+<p dir="RTL">
+2)
+```{r echo = T, include=FALSE, error=FALSE, message=F, warning=FALSE}
+price_high_cor %>% select(row) -> rows
+
+as.vector(rows) -> rows
+
+
+
+strsplit(paste(unlist(rows), collapse = ' '), " ") -> rows_names
+
+as.vector(rows_names[[1]]) -> rows_names
+
+numeric_house %>% select(c(rows_names , "SalePrice")) -> price_high_data
+
+
+price_high_data %>% gather(key = "parameter" , value = "amount",-SalePrice) -> price_high_data_gathered
+
+pricePlot <-
+  ggplot(data = price_high_data_gathered, aes(x = amount , y = SalePrice))
+pricePlot + geom_point(aes(color = parameter)) + geom_smooth(method = "lm") + facet_grid( ~ parameter, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  +
+  theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+
+rcorr(as.matrix(price_high_data)) -> price_high_data_correlations
+
+as.data.frame(price_high_data_correlations$r) -> price_high_data_correlations
+scatterplotMatrix(price_high_data_correlations)
+
+```
+</p>
+
+***
+
+<p dir="RTL">
+3)
+```{r echo = T, include=FALSE, error=FALSE, message=F, warning=FALSE}
+fit = lm(
+  data = numeric_house ,
+  SalePrice ~  OverallQual + GrLivArea +
+    GarageCars + GarageArea + TotalBsmtSF + `1stFlrSF` + FullBath + TotRmsAbvGrd + YearBuilt + YearRemodAdd
+)
+fit
+
+summary(fit)
+
+
+
+```
+</p>
+
+***
+
+<p dir="RTL">
+4)
+```{r echo = T, include=FALSE, error=FALSE, message=F, warning=FALSE}
+numeric_house %>% mutate(pricePredict = predict.lm(fit, type = "response")) -> numeric_house
+
+numeric_house %>% hchart(hcaes(x = SalePrice, y = pricePredict) , type = "scatter") %>%
+  hc_add_theme(hc_theme_monokai())
+
+numeric_house %>% mutate(error = (SalePrice - pricePredict) ^ 2) -> numeric_house
+
+
+ggplot(data = numeric_house, aes(x = error)) + geom_histogram(aes(y = ..density..), fill = "blue") + geom_density(color = "pink") + xlim(0 , 50000000) +  theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+
+
+```
+
+</p>
+
+***
+
+<p dir="RTL">
+5)
+```{r echo = T, include=FALSE, error=FALSE, message=F, warning=FALSE}
+
+summary(fit) -> sum_of_lm_fit
+
+sum_of_lm_fit$r.squared
+
+sum_of_lm_fit$fstatistic
+
+```
+</p>
+
+***
+
+<p dir="RTL">
+6)
+```{r echo = F, include=T, error=F, message=F, warning=F}
+numeric_house$MasVnrArea[is.na(numeric_house$MasVnrArea)] <-
+  mean(numeric_house$MasVnrArea, na.rm = T)
+
+price_correlation %>% arrange(p) %>% head(10) -> price_high_cor_2
+
+price_high_cor_2 %>% select(row) -> rows
+
+as.vector(rows) -> rows
+
+
+
+strsplit(paste(unlist(rows), collapse = ' '), " ") -> rows_names
+
+as.vector(rows_names[[1]]) -> rows_names
+
+
+numeric_house %>% select(c(rows_names , "SalePrice")) -> price_high_data_2
+
+price_high_data_2 %>% gather(key = "parameter" , value = "amount",-SalePrice) -> price_high_data_gathered_2
+
+fit2 = lm(
+  data = numeric_house ,
+  SalePrice ~ LotArea + OverallQual + YearBuilt + YearRemodAdd +
+    MasVnrArea + BsmtFinSF1 + BsmtUnfSF + TotalBsmtSF + `1stFlrSF`
+)
+
+fit2
+
+summary(fit2)
+
+numeric_house %>% mutate(predictPrice2 = fitted(fit2)) -> numeric_house
+
+numeric_house %>% mutate(error2 = (SalePrice - predictPrice2) ^ 2) -> numeric_house
+summary(fit2) -> sum_of_fit2
+sum_of_fit2$r.squared
+sum_of_fit2$fstatistic
+
+numeric_house %>% hchart(hcaes(x = SalePrice, y = predictPrice2) , type = "scatter") %>%
+  hc_add_theme(hc_theme_monokai())
+
+ggplot(data = numeric_house, aes(x = error2)) + geom_histogram(aes(y = ..density..) , fill = "blue") +
+  geom_density(aes(y = ..density..), color = "pink")  +
+  xlim(0, 50000000)  + theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+#6------------ using the first model
+
+fit3 <-
+  lm(
+    data = numeric_house,
+    SalePrice ~ OverallQual + GrLivArea + GarageCars + TotalBsmtSF + YearBuilt + YearRemodAdd + `1stFlrSF` + FullBath
+  )
+summary(fit3) -> sum_of_fit3
+
+sum_of_fit3$r.squared
+sum_of_fit3$fstatistic
+
+numeric_house %>% mutate(pricePredict3 = predict.lm(fit3, type = "response")) -> numeric_house
+
+numeric_house %>% mutate(error3 = (SalePrice - pricePredict3) ^ 2) -> numeric_house
+
+numeric_house %>% hchart(hcaes(x = SalePrice, y = pricePredict3), type = "scatter") %>% hc_add_theme(hc_theme_monokai())
+
+ggplot(data = numeric_house, aes(x = error3)) + geom_histogram(aes(y = ..density..), fill = "blue") + geom_density(color = "pink") + xlim(0, 50000000) +
+  theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+
+```
+</p>
+
+***
+
+<p dir="RTL">
+۷. مدل خود را بر اساس باقی مانده نقص یابی کنید.
+سه محک 
+normality, independance, Constant Variance
+ را در نقص یابی خود در نظر بگیرید.
+</p>
+
+***
+
+<p dir="RTL">
+۸. داده ها را به پنج قسمت تقسیم کنید. بر اساس چهار قسمت مدل خطی را بسازید و صحت مدل را برای یک قسمت 
+باقی مانده را تست کنید. خطای پیش بینی شما چقدر است؟
+</p>
+
+
+***
+
+<p dir="RTL"> 
+۹. آیا قیمت ربط غیر خطی با یکی از ده متغیر استفاده شده دارد؟
+بر اساس دستاوردهای خود مدل را بهتر نمایید.
+</p>
+
+***
+
+<p dir="RTL"> 
+۱۰. بر اساس مدل نهایی به دست آمده نتایج پیش بینی خود را بر روی
+test.csv
+به دست آورید و در سایت 
+kaggle
+ در مسابقه 
+ House Prices: Advanced Regression Techniques
+بارگذاری نمایید. سپس لینک رتبه و عدد آن را ضمیمه تمرین کنید.
+</p>
+
+

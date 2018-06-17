@@ -1,0 +1,341 @@
+---
+title: "Seventh Week: Generalized Linear Models"
+subtitle: "Murder or suicide"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+***
+
+<p dir="RTL">
+۱.متغیر های بدون حشو انتحاب شده عبارت اند از :
+</p>
+```{r echo = F, include=T, message=FALSE, warning=F, error=FALSE}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(highcharter)
+library(h2o)
+library("car")
+library(ggthemes)
+library(boot)
+source("unbalanced_functions.R")
+death = read.csv("data/murder_suicide.csv")
+death %>% select(
+  ActivityCode,
+  DayOfWeekOfDeath,
+  Education2003Revision,
+  HispanicOriginRaceRecode,
+  PlaceOfInjury,
+  MaritalStatus,
+  PlaceOfDeathAndDecedentsStatus,
+  MannerOfDeath,
+  Race ,
+  Sex,
+  Age,
+  MethodOfDisposition
+) -> death_data_selected
+
+death_data_selected %>% mutate(
+  BinaryGender = ifelse(Sex == "M", 0 , 1),
+  ActivityCode = ifelse(ActivityCode == 99, mean(1:9), ActivityCode)  ,
+  DayOfWeekOfDeath = ifelse(DayOfWeekOfDeath == 9 , mean(1:7) , DayOfWeekOfDeath),
+  Education2003Revision = ifelse(Education2003Revision == 9 , mean(1:8), Education2003Revision),
+  HispanicOriginRaceRecode = ifelse(
+    HispanicOriginRaceRecode == 9 ,
+    mean(1:8),
+    HispanicOriginRaceRecode
+  ),
+  PlaceOfInjury = ifelse(PlaceOfInjury == 99 , mean(1:9), PlaceOfInjury),
+  MannerOfDeath = ifelse(MannerOfDeath == 0 , mean(1:7), MannerOfDeath) ,
+  Race = ifelse(Race >= 18, (Race - 18) / 10 + 9, Race)
+) -> death_data_selected
+
+death_data_selected$factorMaritualStatus = as.factor(death_data_selected$MaritalStatus)
+
+death_data_selected$factorMaritualStatus = as.integer(death_data_selected$factorMaritualStatus)
+
+death_data_selected$MethodOfDisposition = as.integer(as.factor(death_data_selected$MethodOfDisposition))
+
+Filter(is.numeric, death_data_selected) -> death_data_selected
+colnames(death_data_selected)
+
+```
+
+</p>
+<p dir="RTL">
+```{r echo=F, include=T, warning=F, message=F, error=F}
+cor(death_data_selected,
+    method =  c("pearson", "kendall", "spearman")) -> death_data_correlation
+
+
+corrplot::corrplot(death_data_correlation,
+                   order = "hclust",
+                   tl.col = "black", )
+
+scatterplotMatrix(death_data_correlation, col = "purple")
+
+death_data_selected %>% mutate(isSuicide = ifelse(MannerOfDeath == 2 , 1 , 0)) -> death_data_selected
+
+
+```
+</p>
+***
+
+<p dir="RTL">
+با توجه به این که تمامی پارامتر ها کیفی هستند، از آزمون فرض استقلال خی دو استفاده شده است.
+به جز پارامتر سن که از تی تست استفاده شده است.
+</p>
+
+<p dir = "RTL">
+```{r echo=F, include=T, warning=F, message=F, error=F}
+
+#Gender
+
+
+chisq.test(death_data_selected$BinaryGender, death_data_selected$isSuicide)
+
+#Race
+
+
+chisq.test(death_data_selected$Race, death_data_selected$isSuicide)
+#Education
+
+
+chisq.test(death_data_selected$Education2003Revision, death_data_selected$isSuicide)
+
+#Age
+
+t.test(death_data_selected$Age, death_data_selected$isSuicide)
+
+
+#disposition
+
+chisq.test(death_data_selected$MethodOfDisposition, death_data_selected$isSuicide)
+
+
+```
+
+</p>
+
+***
+<p dir="RTL">
+با توجه به پی-مقدار های به دست آمده برای متغیر ها، مدل نقص یابی شده و در آخر به مدل نهایی میرسیم.
+</p>
+
+<p dir="RTL">
+```{r echo=F, include=T, warning=F, message=F, error=F}
+glm(
+  data = death_data_selected,
+  isSuicide ~ Race + Age + BinaryGender + MethodOfDisposition + Education2003Revision ,
+  family = "binomial"
+) -> model
+
+summary(model)
+
+summary(glm(data = death_data_selected,
+    isSuicide ~ Race + Age + DayOfWeekOfDeath + MethodOfDisposition + Education2003Revision ,
+    family = "binomial"))
+
+glm(
+  data = death_data_selected,
+  isSuicide ~ ActivityCode +  Race + Age + MethodOfDisposition + Education2003Revision + PlaceOfInjury +
+    PlaceOfDeathAndDecedentsStatus + factorMaritualStatus,
+  family = "binomial"
+) -> model
+
+summary(model)
+
+glm.diag.plots(model, glmdiag = glm.diag(model))
+
+```
+</p>
+
+***
+
+<p dir="RTL">
+نمودار بالا سمت راست بیانگر میزان خطی بودن متغیر هاست. نمودار بالا سمت راست در صورت نداشتن الگوی خاصی بیانگر نرمال بودن حول صفر است 
+</p>
+```{r echo=F, include=TRUE, warning=F, message=FALSE, error=FALSE}
+death_data_selected %>% mutate(pred = fitted(model), type = 'response') -> death_data_selected
+ggplot(data = death_data_selected, aes(x = pred, color = as.factor(isSuicide))) + geom_density(size = 1.5) + theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+
+death_data_selected %>% group_by(isSuicide) %>%
+  summarise(mean = mean(as.numeric(pred))) -> prediction_ratio
+
+ggplot(data = prediction_ratio, aes(x = as.factor(isSuicide), y = (mean))) + 
+  geom_histogram( stat = "identity",aes(fill = as.factor(isSuicide))) + xlab("is suicide") + ylab("mean of prediction") + theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+  
+
+ggplot(
+  data = death_data_selected,
+  aes(
+    x = ActivityCode * model$coefficients[2] +  Race * model$coefficients[3] + Age * model$coefficients[4] +
+      MethodOfDisposition  * model$coefficients[5] + Education2003Revision * model$coefficients[6] +
+      PlaceOfInjury * model$coefficients[7] +
+      PlaceOfDeathAndDecedentsStatus * model$coefficients[8] + factorMaritualStatus * model$coefficients[9],
+    y = isSuicide
+  )
+) + geom_point(color = "yellow") +
+  geom_line(
+    aes(
+      x = ActivityCode * model$coefficients[2] +  Race * model$coefficients[3] + Age * model$coefficients[4] +
+        MethodOfDisposition  * model$coefficients[5] + Education2003Revision * model$coefficients[6] +
+        PlaceOfInjury * model$coefficients[7] +
+        PlaceOfDeathAndDecedentsStatus * model$coefficients[8] + factorMaritualStatus * model$coefficients[9],
+      y = pred
+    ) , color = "blue" , size = 2
+  ) + xlab("linear model") + theme_hc(bgcolor = "darkunica") +
+  scale_fill_hc("darkunica")
+
+
+```
+</p>
+***
+
+<p dir="RTL">
+</p>
+
+<p dir="RTL">
+```{r echo=F, include=TRUE, warning=F, message=FALSE, error=FALSE}
+
+index = sample(1:nrow(death_data_selected), size = nrow(death_data_selected) * 0.8 , replace = F)
+train = death_data_selected[index,]
+test = death_data_selected[-index,]
+
+glm(
+  data = train,
+  isSuicide ~ ActivityCode +  Race + Age + MethodOfDisposition + Education2003Revision + PlaceOfInjury +
+    PlaceOfDeathAndDecedentsStatus + factorMaritualStatus,
+  family = "binomial"
+) -> new_model
+
+
+test$prediction = predict(new_model, newdata = test, type = "response", na.action = na.pass)
+
+test$result <- ifelse(test$prediction > 0.5 , 1 , 0)
+
+positiveSamples <- sum(test$result)
+
+negativeSamples = nrow(test) - positiveSamples
+
+truePositive = length(test$result[test$result == test$isSuicide & test$result == 1])
+
+trueNegative = length(test$result[test$result == test$isSuicide & test$result == 0])
+
+falsePositive = length(test$result[test$result == 0 & test$isSuicide == 1])
+
+falseNegative = length(test$result[test$result == 1 & test$isSuicide == 0])
+
+Accuracy = (trueNegative + truePositive) / nrow(test) #not sure
+
+falsePositiveRate = 1 - (trueNegative / negativeSamples)
+
+truePositiveRate = truePositive / positiveSamples
+
+print(paste("Positive samples: ", positiveSamples))
+print(paste("Negative samples: ", negativeSamples))
+print(paste("true positive: ", truePositive))
+print(paste("true negative: ", trueNegative))
+print(paste("false positive: ", falsePositive))
+print(paste("false negative: ", falseNegative))
+print(paste("false negative: ", falseNegative))
+print(paste("Accuracy: ", Accuracy))
+print(paste("true positive rate: ", truePositiveRate))
+
+cm_info <-
+  ConfusionMatrixInfo(
+    data = test,
+    predict = "prediction",
+    actual = "isSuicide",
+    cutoff = 0.5
+  )
+cm_info$plot
+
+```
+</p>
+***
+
+<p>
+```{r echo=F, include=TRUE, warning=F, message=FALSE, error=FALSE}
+
+train$prediction = predict(new_model, newdata = train , type = "response", na.action = na.pass)
+
+accuracy_info = AccuracyCutoffInfo( train = train, test = test, 
+                                    predict = "prediction", actual = "isSuicide" )
+accuracy_info$plot
+
+print(paste("cut off" , accuracy_info$data[which(accuracy_info$data$test == max(accuracy_info$data$test)), 1]))
+```
+</p>
+
+***
+
+<p>
+```{r echo=F, include=TRUE, warning=F, message=FALSE, error=FALSE, eval = TRUE}
+
+cost_fp = 100; cost_fn = 200
+roc_info = ROCInfo( data = cm_info$data, predict = "predict", 
+                    actual = "actual", cost.fp = cost_fp, cost.fn = cost_fn )
+grid.draw(roc_info$plot)
+print(paste("cutoff: ", roc_info$cutoff))
+```
+</p>
+
+***
+
+<p dir="RTL">
+در مدل ساخته شده ابتدا ضرایب پیدا شده برای متغیر هایآمده اند.
+</br>
+میانگین ارور ها نیز برابر با 0.16 است.
+</br>
+همچنین دقت مدل برابر است با  0.7667823.
+</br>
+R^2:  0.1985855
+</br>
+این مقدار هر چه به 1 نزدیک تر باشد، 
+</br>
+مقدار  0.23 از داده ها هم مقدار اشتباه برای آن ها محاسبه شده، یعنی خطای اول و دوم
+</br>
+برای بهتر کردن مدل لازم است که 
+logloss
+آن کمتر باشد. با توجه به اینکه این کمیت در مدل ما زیاد است، پس دقت مدل انچنان بالا نیست.
+در اصل این کمیت
+loss function
+برای مدل های کلاسیفیکیشن میباشد.
+</p>
+<p>
+```{r echo=F, include=TRUE, warning=F, message=FALSE, error=FALSE, eval = TRUE}
+h2o.init()
+hsuicide = as.h2o(death_data_selected)
+chglm = h2o.glm(y = "isSuicide", x= c("ActivityCode" ,  "Race"  ,"Age" , 
+                                      "MethodOfDisposition", "Education2003Revision",  "PlaceOfInjury" ,
+                                         "PlaceOfDeathAndDecedentsStatus" ,"factorMaritualStatus"),
+                training_frame = hsuicide, family="binomial",nfolds = 5)
+chglm
+
+
+```
+</p>
+
+***
+
+<p dir="RTL"> 
+۹. آیا ما میتوانیم سرویسی به قضات ارایه کنیم تا با استفاده از اطلاعات مرگ بتوانند موارد مشکوک به قتل را از خودکشی تفکیک دهند؟
+</br>
+با توجه به این نکته که در داده مورد نظر، اطلاعاتی از قبیل وضعیت مالی، میزان موفقیت در شغل، میزان موفقیت در تحصیلات، تعداد اعضای خانواده که فرد با آن ها زندگی میکند، داده نشده اند، قضاوت بر اساس مواردی مانند سن، نژاد و سایر پارامتر های گفته شده میباشد. این اطلاعات برای قضاوت کردن کافی نمیباشد. 
+</br>
+البته قضاوت کردن نباید فقط بر اساس مدل ارائه شده باشد زیرا هر چقد هم که مدل دقیق باشد هرگز نمیتوان به خطای 0 رسید در نتیجه این ابزار تنها میتواند به قضات در تصمیم گیری کمک کند.
+در این مدل نیز با توجه به سوال قبل میتوان نتیجه گرفت که دقت آن به اندازه کافی بالا نیست.
+</br>
+البته لازم به ذکر است که مدلی برای تشخیص خودکشی در کشور آمریکا ارائه شده است.
+</p>
+
+

@@ -1,0 +1,530 @@
+---
+title: "Fourth Week: Hypothesis Testing"
+subtitle: "TIMSS Analysis"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+
+<h1 dir="RTL"> 
+تمرین سری چهارم: چقدر ریاضی بلدیم و چرا؟
+</h1>
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(highcharter)
+library(tidyr)
+library(ggplot2)
+library(ggthemes)
+
+bcg <- read_rds("bcg.rds") #school backgroud file(poresh name)
+bsa <- read_rds("bsa.rds") #student achievment test
+bsg <- read_rds("bsg.rds") #student backgroud file
+bsr <-
+  read_rds("bsr.rds") #Student Achievement Scoring Reliability file
+bst <- read_rds("bst.rds") #Student-Teacher Linkage file
+btm <- read_rds("btm.rds") #Mathematics Teacher Background file
+bts <- read_rds("bts.rds") #Science Teacher Background file
+timss <- read_rds("timss_2015.rds")
+
+
+bsa$idstud = paste(bsa$idstud , bsa$idcntry , sep = "-")
+bsg$idstud = paste(bsg$idstud , bsg$idcntry , sep = "-")
+bsr$idstud = paste(bsr$idstud , bsr$idcntry , sep = "-")
+bst$idstud = paste(bst$idstud , bst$idcntry , sep = "-")
+```
+
+
+
+
+***
+1)
+محیط آرام مدرسه در پیشرفت تحصیلی موثر است.
+</br>
+<p dir="RTL">
+
+در پرسشنامه ها از معلمان پرسیده شده که مدرسه ای که در آن درس میدهند تا چه حدی از آرامش و امنیت برخوردار است.با استفاده ازین داده توانستیم میانگین امنیت هر مدرسه و عملکرد دانش آموزان آن مدرسه را به دست بیاوریم. با انجام تست کورولیشن و با فرض صفر رابطه نداشتن این دو کمیت به هم فرض صفر را با توجه به نیتجه به دست آمده از تست که در زیر مشاهده میکنید، با اطمینان رد میکنیم.کنیم.
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+btm %>% select(idschool , safty = btdgsos) -> safeSchoolOne
+bts %>% select(idschool, safty = btdgsos) -> safeSchoolTwo
+
+
+schoolSafty <- rbind(safeSchoolOne, safeSchoolTwo)
+
+
+schoolSafty %>% group_by(idschool) %>% mutate(safty = mean(safty , na.rm = T)) -> schoolSafty #alan mizan safe boodan hameye madrese haro darim
+
+
+bsa %>% select(idschool, idstud , bsmmat01:bsmmat05, bsssci01:bsssci05) %>%
+  group_by(idstud, idschool) %>% summarise(ability  = (
+    mean(bsmmat01:bsmmat05, na.rm = T) + mean(bsssci01:bsssci05, na.rm = T)
+  ) / 2) -> stud
+stud %>% group_by(idschool) %>% summarise(performance = mean(ability)) -> schoolperformance
+full_join(schoolperformance, schoolSafty) -> schoolInfo
+
+
+
+cor.test(
+  schoolInfo$safty ,
+  schoolInfo$performance ,
+  method = c("pearson", "kendall", "spearman")
+)
+#The p-value of the test is 1.29410^{-10}, which is less than the significance level alpha = 0.05. We can conclude that wt and mpg are significantly correlated with a correlation coefficient of -0.87 and p-value of 1.29410^{-10} .
+ggplot(data = schoolInfo, aes(x = safty , y = performance)) + geom_point(aes(color = safty)) + geom_smooth(method = "lm") + xlab('unsafety') + theme_solarized()
+
+schoolInfo %>% group_by() %>%
+  sample_frac(0.05) -> schoolInfo
+schoolInfo %>% hchart(hcaes(x = safty , y = performance) , type =  "scatter") %>% hc_add_theme(hc_theme_db())
+
+```
+
+
+</p>
+
+***
+2)
+.پسران در کاربرد هندسه قوی تر میباشند
+</br>
+<p dir="RTL">
+
+
+در این سوال، نمره ریاضی پسران و دختران را استخراج کرده و با انجام آزمون واریانس و فرض اولیه عملکرد بالاتر پسران از دختران، با مشاهده مقدار پی بسیار کوچک، با اطمینان فرض صفر را رد میکنیم.
+
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+bsa %>% select(idstud, itsex, bsmgeo01:bsmgeo05) %>%
+  group_by(idstud, itsex) %>% mutate(geometry = mean(bsmgeo01:bsmgeo05, na.rm = T)) -> geometryGender
+geometryGender %>% group_by(idstud) %>% mutate(gender = ifelse(itsex == 1 , "female" , "male")) -> geometryGender
+t.test(data = geometryGender , geometry ~ gender, alt = "greater") #hoora
+
+
+geometryGender %>% group_by(gender) %>% summarise(score = mean(geometry)) %>% drop_na() -> geometryGender
+geometryGender %>% drop_na() %>% hchart(hcaes(x = gender , y = score) , type = "column") %>% hc_add_theme(hc_theme_db())
+ggplot(data = geometryGender , aes(x = gender , y = score)) + geom_histogram(aes(fill = gender), stat = "identity") + theme_solarized()
+
+
+
+
+```
+</p>
+
+***
+3)
+معلمان با تحصیلات بالاتر یا تجربه بیشتر دانش آموزان موفق تری تربیت می کنند. 
+</br>
+<p dir="RTL">
+
+. فرض صفر برابر با رابطه نداشتن این دو متغیر است که مشاهده میشود با اطمینان فرض صفر را رد کردیم. 
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+btm %>% select(idteach, idcntry, idschool, btbg01, btbg04) -> mathTeacher
+full_join(mathTeacher, bst) %>% drop_na() -> mathTeacher
+
+mathTeacher$idteach = paste(mathTeacher$idteach,
+                            mathTeacher$idcntry,
+                            mathTeacher$idschool,
+                            sep = "-")
+
+
+
+
+
+mathTeacher %>% select(idteach, idstud, btbg01, btbg04, bsmmat01:bsmmat05) -> mathTeacher
+mathTeacher$years = mathTeacher$btbg01 / 40
+mathTeacher$degree = mathTeacher$btbg04 / 7
+mathTeacher$ability = (
+  mathTeacher$bsmmat01  + mathTeacher$bsmmat02 + mathTeacher$bsmmat03 + mathTeacher$bsmmat04 + mathTeacher$bsmmat05
+) / 5
+
+mathTeacher$score = (mathTeacher$years + mathTeacher$degree) / 2
+
+bts %>% select(idteach, idcntry, idschool, btbg01, btbg04) -> scienceTeacher
+full_join(scienceTeacher, bst) %>% drop_na() -> scienceTeacher
+
+scienceTeacher$idteach = paste(scienceTeacher$idteach,
+                               scienceTeacher$idcntry,
+                               scienceTeacher$idschool,
+                               sep = "-")
+scienceTeacher %>% group_by(idteach, idstud) %>% summarise(
+  years = mean(btbg01 , na.rm = T) / 40 ,
+  degree = mean(btbg04 , na.rm = T) / 7,
+  ability =  mean(bsssci01:bsssci05 , na.rm = T)
+) %>%
+  mutate(score = (years + degree) / 2) -> scieneT
+
+scienceTeacher %>% select(idteach, idstud, btbg01, btbg04, bsssci01:bsssci05) -> scienceTeacher
+scienceTeacher$years = scienceTeacher$btbg01 / 60
+scienceTeacher$degree = scienceTeacher$btbg04 / 7
+scienceTeacher$ability = (
+  scienceTeacher$bsssci01  + scienceTeacher$bsssci02 + scienceTeacher$bsssci03 + scienceTeacher$bsssci04 + scienceTeacher$bsssci05
+) / 5
+
+scienceTeacher$score = (scienceTeacher$years + scienceTeacher$degree) / 2
+
+
+mathTeacher %>% select(idteach, idstud, score, ability) -> mathTeacher
+scienceTeacher %>% select(idteach, idstud, score, ability) -> scienceTeacher
+
+rbind(mathTeacher , scienceTeacher) -> teacherDegree
+cor.test(teacherDegree$score , teacherDegree$ability) #hoora
+
+
+
+teacherDegree %>% group_by(idteach) %>% summarise(score = mean(score), ability = mean(ability)) -> teacherDegree
+teacherDegree %>% group_by() %>%
+  sample_frac(0.05) -> teacherDegree
+teacherDegree %>% hchart(hcaes(x = score , y = ability), type = "scatter") %>% hc_add_theme(hc_theme_db())
+ggplot(data = teacherDegree , aes(x = score , y = ability)) + geom_point(color = "pink") + geom_smooth(method = "lm") +  theme_solarized()
+
+```
+
+</p>
+
+***
+4)
+تغذیه دانش آموزان نقش اساسی در یادگیری آنها دارد. 
+</br>
+<p dir="RTL">
+
+در پرسش نامه ها از دانش آموزان پرسیده شده که در چند درصد روزها، صبحانه خورده و به مدرسه میروند. ملاک تغذیه سالم را این سوال قرار داده ام.
+</br>
+با استفاده از دو آزمون فرض و با فرض صفر بی تاثیر بودن صبحانه خوردن در عملکرد تحصیلی، توانستیم فرض صفر را رد کنیم و فرض جایگزین یعنی تاثیر صبحانه بر نمرات دانش آموزان را بپذیریم. تاثیر مثبت آن توسط نمودار های زیرمشخص شده است.
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+
+bsg %>% select(idstud, bsbg12) -> breakfastInfo
+bsa %>% select(idstud, bsmmat01:bsmmat05, bsssci01:bsssci05, idschool) %>%
+  group_by(idstud) %>%
+  mutate(
+    mathematics = mean(bsmmat01:bsmmat05 , na.rm = T) ,
+    science = mean(bsssci01:bsssci05 , na.rm = T)
+  ) %>% mutate(performance = (science + mathematics) / 2) -> performanceForEachStudent
+
+full_join(breakfastInfo, performanceForEachStudent) -> breakfastInfo
+
+breakfastInfo %>% filter(bsbg12 %in% c(1 , 2, 3, 4)) -> breakfastInfo
+
+aov(data = breakfastInfo, performance ~ bsbg12) -> fit
+summary.aov(fit)
+chisq.test(breakfastInfo$performance, breakfastInfo$bsbg12)
+
+
+breakfastInfo %>%
+  group_by() %>% 
+  sample_frac(0.01) %>% 
+  hchart(hcaes(
+    x = (bsbg12),
+    y = performance,
+    group = bsbg12
+  ) , type = "scatter") %>% hc_add_theme(hc_theme_db())
+
+ggplot(data = breakfastInfo, aes(x = mathematics, fill = as.character(bsbg12))) + geom_density(alpha = 0.4) +   theme_solarized()
+
+ggplot(data = breakfastInfo ,
+       aes(
+         x = as.character(bsbg12) ,
+         y = mathematics ,
+         fill = as.character(bsbg12)
+       )) + geom_boxplot()+  theme_solarized()
+
+
+
+```
+</br>
+دقت کنید که اگر دانش آموزی هر روز صبحانه بخورد، عدد آن 1 و اگر هیچ وقت صبحانه نخورد عدد 4 را انتخاب کرده است.
+</p>
+
+***
+5)
+والدینی که تحصیلات بیشتری دارند دارای فرزندان موفق تری می باشند.
+</br>
+<p dir="RTL">
+
+فرض صفر را بی تاثیر بودن تحصیلات والدین بر روی عملکرد دانش آموزان در نظر گرفتیم. با انجام آزمون مناسب این فرض رد میشود.
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+full_join(
+  bsg %>%
+    select(
+      idstud ,
+      fatherEducation = bsbg07b,
+      motherEducation = bsbg07a
+    ) %>% filter(!(fatherEducation == 8 | motherEducation == 8)),
+  performanceForEachStudent
+) -> parentEducationInfo
+
+parentEducationInfo %>%  group_by(idstud) %>% 
+  drop_na() %>% 
+  mutate(
+    parentEdu = (fatherEducation  + motherEducation) / 2 ,
+    ability = (mathematics + science) / 2
+  ) -> parentEducationInfo
+
+cor.test(
+  parentEducationInfo$parentEdu ,
+  parentEducationInfo$ability ,
+  method = c("pearson", "kendall", "spearman")
+) # p kheili koochik , cor > 0
+
+parentEducationInfo %>%
+  group_by() %>% 
+  sample_frac(0.01) -> parentEducationInfo
+
+
+ggplot(data = parentEducationInfo , aes(
+  x = parentEdu ,
+  y = ability,
+  fill = as.character(parentEdu)
+)) + geom_boxplot()  +   theme_solarized()
+
+
+
+
+hcboxplot(
+  x = parentEducationInfo$ability,
+  var = parentEducationInfo$parentEdu,
+  name = "Length",
+  color = "#2980b9"
+)  %>% hc_add_theme(hc_theme_db())
+
+
+
+
+
+```
+</p>
+
+***
+6)
+ دانش آموزان ایرانی در استدلال قوی تر از کاربرد هستند. 
+</br>
+<p dir="RTL"> 
+فرض صفر را قوی تر بودن استدلال از کاربرد در نظر میگیریم.
+
+مشاهده میشود که میانگین این دو کمیت بسیار نزدیک به هم است و با وجود مقدار پی بیشتر از 5 درصد نمیتوانیم این فرض را رد کنیم.
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+bsa %>% 
+  filter(idcntry == 364) %>%
+  select(idstud,
+         bsmrea01:bsmrea05,
+         bsmapp01:bsmapp05 ,
+         bssrea01:bssrea05 ,
+         bssapp01:bssapp05) %>%
+  group_by(idstud) %>% drop_na() %>%
+  summarise(
+    applying = (
+      bsmapp01 + bsmapp02 + bsmapp03 + bsmapp04 + bsmapp05 + bssapp01 + bssapp02 + bssapp03 + bssapp04 + bssapp05
+    ) / 10,
+    reasoning = (
+      bsmrea01 + bsmrea02 + bsmrea03 + bsmrea04 + bsmrea05 + bssrea01 + bssrea02 + bssrea03 +  bssrea04 + bssrea05
+    ) / 10
+  ) -> IranStudents
+
+t.test(IranStudents$applying, IranStudents$reasoning , alt = "greater")
+IranStudents %>% sample_frac(0.05) -> IranStudents
+IranStudents %>% gather("applying" , "reasoning", key = "key" , value = "score") -> IranStudents
+
+ggplot(data = IranStudents , aes(x = key, y = score)) + geom_boxplot(aes(fill = key)) + theme_solarized()
+
+
+```
+</p>
+
+***
+7)
+ میران رضایت معلمان در پیشرفت تحصیلی دانش آموزان موثر است. 
+ </br>
+<p dir="RTL"> 
+
+ در پرسش نامه معلمان از آنها سوال شده که تا چه میزان از شغل خود رضایت دارند.
+با استفاده از این داده ها وداده ارتباط دهنده دانش آموزان با معلمان، مشخص شده رضایت معلمان در پیشرفت تحصیلی بی تاثیر نیست
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+
+btm %>%
+  select(idschool, btbg10a:btbg10g, idteach, idcntry) -> teacherSatisfyied
+full_join(teacherSatisfyied, bst) -> teacherSatisfyied
+
+
+teacherSatisfyied$idteach = paste(teacherSatisfyied$idteach ,
+                                  teacherSatisfyied$idcntry,
+                                  teacherSatisfyied$idschool)
+
+
+teacherSatisfyied$satisfaction = 5 - (
+  teacherSatisfyied$btbg10a +
+    teacherSatisfyied$btbg10b + teacherSatisfyied$btbg10c +
+    teacherSatisfyied$btbg10d + teacherSatisfyied$btbg10e +
+    teacherSatisfyied$btbg10f + teacherSatisfyied$btbg10g
+) / 7
+teacherSatisfyied$studentAbility = (
+  teacherSatisfyied$bsmmat01 + teacherSatisfyied$bsmmat02 +
+    teacherSatisfyied$bsmmat03 + teacherSatisfyied$bsmmat04 +
+    teacherSatisfyied$bsmmat05
+) / 5
+
+mathSatisfaction <- teacherSatisfyied
+
+bts %>%
+  select(idschool, btbg10a:btbg10g, idteach, idcntry) -> teacherSatisfyied
+full_join(teacherSatisfyied, bst) -> teacherSatisfyied
+
+teacherSatisfyied$idteach = paste(teacherSatisfyied$idteach ,
+                                  teacherSatisfyied$idcntry,
+                                  teacherSatisfyied$idschool)
+
+
+teacherSatisfyied$satisfaction = 5 - (
+  teacherSatisfyied$btbg10a + teacherSatisfyied$btbg10b +
+    teacherSatisfyied$btbg10c + teacherSatisfyied$btbg10d +
+    teacherSatisfyied$btbg10e + teacherSatisfyied$btbg10f +
+    teacherSatisfyied$btbg10g
+) / 7
+
+teacherSatisfyied$studentAbility = (
+  teacherSatisfyied$bsssci01 +
+    teacherSatisfyied$bsssci02 +
+    teacherSatisfyied$bsssci03 +
+    teacherSatisfyied$bsssci04 +
+    teacherSatisfyied$bsssci01
+) / 5
+
+scienceSatisfaction <- teacherSatisfyied
+
+rbind(mathSatisfaction , scienceSatisfaction) -> satisfaction
+
+satisfaction %>% aov(data = . , studentAbility ~ satisfaction) -> fit
+summary.aov(fit) #hoora fitesh koochik shod
+cor.test(satisfaction$studentAbility, satisfaction$satisfaction) #hoora
+
+
+satisfaction %>% group_by(idteach) %>%
+  summarise(
+    satisfaction = mean(satisfaction, na.rm = T) ,
+    studentAbility = mean(studentAbility, na.rm = T)
+  ) %>%
+  sample_frac(0.2) -> satisfaction
+
+ggplot(data = satisfaction , aes(x = satisfaction , y = studentAbility)) + geom_point(color = "purple") + geom_smooth()+ theme_solarized()
+satisfaction %>%
+  hchart(hcaes(x = satisfaction, y = studentAbility) , type = "scatter") %>% hc_add_theme(hc_theme_db())
+
+
+
+```
+***
+8)دانش آموزان درس خوان در مدرسه مورد زورگویی قرار میگیرند.
+</br>
+<p dir="RTL"> 
+
+در پرسش نامه دانش آموزان از آن ها سوالاتی در مورد اینکه آیا مورد زورگیری قرار میگیرند پرسیده شده. با استفاده ازین داده و آزمون فرض مناسب، آزمون صفر را بی تاثیر 
+بودن مورد زورگیری قرار گرفتن در عملکرد تحصیلی در نظرگرفتم. 
+</br>
+فرض صفر رد میشود و نتیجه میگیرم که مورد زورگویی قرار گرفتن با عملکرد درسی متناسب است.
+با نمودار کشیده شده مشخص است که زورگویی تاثیر منفی بر نمرات دانش آموزان دارد.پس نمیتوانیم گزاره داده شده را بپذیریم
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+bsg %>% select(idstud, bsbg16a:bsbg16i) %>% drop_na() %>%
+  group_by(idstud) %>% mutate(bullyScore = bsbg16a + bsbg16b + bsbg16c + bsbg16d + bsbg16e + bsbg16f + bsbg16g + bsbg16h + bsbg16i) %>% View()
+
+
+bsg %>% select(idstud, bsbg16a:bsbg16i) %>% drop_na() %>%
+  group_by(idstud) %>% summarise(
+    bullyScore = 5. - (
+      bsbg16a + bsbg16b + bsbg16c + bsbg16d + bsbg16e + bsbg16f + bsbg16g + bsbg16h + bsbg16i
+    ) / 9
+  ) -> bullyingScore
+full_join(bullyingScore, performanceForEachStudent) -> bullyingScore
+
+bullyingScore %>% group_by(idstud) %>% mutate(totalGrade = (mean(mathematics) + mean(science)) /
+                                                2) -> bullyingScore
+
+
+cor.test(bullyingScore$bullyScore, bullyingScore$totalGrade, paired = T)
+
+
+
+
+bullyingScore %>% group_by() %>%
+  sample_frac(0.01) -> bullyforPlot
+ggplot(data = bullyforPlot, aes(x = bullyScore , y = totalGrade)) + geom_point(color = "violet") + geom_smooth() + theme_solarized()
+
+bullyingScore %>% group_by(bullyScore) %>%
+  summarise(totalGrade = mean(totalGrade, na.rm = T)) -> bullyingScore
+
+bullyforPlot %>% hchart(hcaes(x = bullyScore, y = totalGrade), type = "scatter") %>% hc_add_theme(hc_theme_db())
+
+bullyingScore %>% hchart(hcaes(x = bullyScore , y = totalGrade) , type = "column") %>% hc_add_theme(hc_theme_db())
+
+
+
+
+```
+
+</p>
+
+***
+9)
+امید به تحصیل دانش آموزان با سطح مالی پایین تر با دانش آموزان با سطح مالی بالاتر برابر است.
+</br>
+همان طور که مشاهده میشود میتوانیم با اطمینان این فرض را رد کنیم و با توجه به نمودار میتوانیم متوجه روند صعودی امید به تحصیل و سطح مالی بالاتر بشویم.
+<p dir="RTL"> 
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+
+bsg %>% select(idstud, bsbg05, bsbg08, bsbg06a:bsbg06g) %>% drop_na() %>%
+  group_by(idstud) %>%
+  summarise(wealth = (
+    bsbg05 + 14 - (bsbg06a + bsbg06b + bsbg06c + bsbg06d + bsbg06e + bsbg06f + bsbg06g)
+  ) / 12,
+  educationExpection = bsbg08) -> studentWealthInformation
+
+cor.test(studentWealthInformation$wealth,
+         studentWealthInformation$educationExpection) #in yani beham rabt daran
+studentWealthInformation %>%
+  aov(data = ., wealth ~ educationExpection) -> fit
+
+summary.aov(fit)
+
+studentWealthInformation %>%
+  group_by(wealth) %>% summarise(educationExpection = mean(educationExpection, na.rm = T)) -> wealthMean
+
+wealthMean %>% hchart(hcaes(x = wealth, y = educationExpection, group = educationExpection),
+                      type = "column") %>% hc_add_theme(hc_theme_db())
+
+ggplot(data = wealthMean , aes(x = wealth , y = educationExpection)) + geom_histogram(stat = "identity", aes(fill = educationExpection)) + theme_solarized()
+
+```
+
+</p>
+
+***
+10) </br>
+تاثیر فشار پدر و مادر بر روی عملکرد دانش آموزان بی تاثیر است.
+<p dir="RTL"> 
+با انجام آزمون فرض مناسب این فرض رد شده است و از روی نمودار مشاهده میشود هر چه فشار پدر و مادر بر روی فرزندان بیشتر باشد، عملکرد آن ها ضعیف تر بوده است
+
+
+```{r echo = FALSE, include=TRUE, message=FALSE , error=FALSE, warning=FALSE}
+
+bcg %>% select(idschool, pressure =  bcbg14j) -> parentPressure
+full_join(parentPressure, schoolperformance) -> parentPressure
+
+
+aov(data = parentPressure, pressure ~ performance) -> fit
+summary.aov(fit)
+cor.test(parentPressure$pressure, parentPressure$performance , method = "spearman")
+
+ggplot(data = parentPressure, aes(x = as.numeric(pressure), y = performance)) + geom_point(color = "blue")
+
+parentPressure %>% group_by(pressure) %>%
+  summarise(performance = mean(performance , na.rm = T)) -> parentPressure
+
+parentPressure %>% hchart(hcaes(X = pressure, y = performance) , type = "bubble") %>% hc_add_theme(hc_theme_db())
+
+ggplot(data = parentPressure, aes(x = as.numeric(pressure), y = performance)) + geom_point(color = "blue") + geom_smooth() + xlab('Parent Pressure') + theme_solarized()
+
+
+
+```
+</p>
+
+***

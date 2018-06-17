@@ -1,0 +1,449 @@
+---
+title: "first week: Introduction to R and Rstudio"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+
+---
+
+<div align="center">
+<img  src="Rman.jpeg"  align = 'center'>
+</div>
+
+#### 1st question
+In this question we are asked to make magic squares with $16$, $25$ and $36$ elements.A magic square of order $n$ is an arrangement of $n^2$ numbers, usually distinct integers, in a square, such that the $n$ numbers in all rows, all columns, and both diagonals sum to the same constant. A magic square contains the integers from $1$ to $n^2$.
+I have used three different functions to create three types of these matrices : </br>
+1) Odd order Magic Square. $n =2k + 1$   ->   $n = 5$ </br>
+2) Doubly-even order Magic Square. $n = 4k$   ->   $n = 4$ </br>
+3) Singly-even order Magic Square. $n = 4k + 2$   ->   $n = 6$ </br>
+
+
+```{r echo = FALSE , include = FALSE}
+library(magic)
+matrix_6 <- magic(6)
+
+
+
+```
+For $n = 6$, I have used the function "magic" after installing the "Magic" library. </br> 
+
+``` {r echo = FALSE, include = TRUE }
+print(matrix_6)
+```
+For $n = 4$, I have used the function "make_magic_matrix_doubly_even" which creates doubly-even order magic suqares. </br>
+
+```{r echo = FALSE, include= TRUE}
+arr <- matrix(1:16, nrow = 4, byrow = TRUE)
+n <- 4
+for (i in 1:(n/4)){
+      for ( j in 1:(n/4)){
+       
+        t <- arr[i , j]
+        arr[i,j] = (n*n + 1) - t
+   
+      }
+    }
+      
+      
+      for (i in 1 : (n%/%4)){
+        for ( j in ((3 * (n%/%4)) + 1) : n){
+          arr[i, j] = (n*n + 1) - arr[i, j]
+        }
+      }
+          
+        
+        for ( i in ((3 * n/4) + 1) : n){
+          for ( j in 1 : (n/4)){
+            arr[i, j] = (n*n+1) - arr[i, j]
+          }
+        }
+
+          for ( i in (3 * n%/%4 + 1) : n)
+            for ( j in (3 * n%/%4 + 1) : n)
+              arr[i, j] = (n*n + 1) - arr[i, j]
+            
+            for ( i in (n%/%4 + 1) : (3 * n%/%4))
+              for ( j in (n%/%4 + 1) : (3 * n%/%4))
+                arr[i, j] = (n*n + 1) - arr[i, j];
+              
+print(arr)
+        
+```
+For $n = 5$, I have used a function called "make_magic_matrix_odd" which creates odd order magic squares. </br>
+``` {r echo = FALSE, include = TRUE}
+  n <- 5
+  a <- matrix(integer(25) , nrow = 5, byrow = TRUE)
+  i = ceiling(n / 2)
+  j = n 
+  total <- n * n
+  num <- 1
+  
+  while (num <= total)
+  {
+    
+   
+    if (i == 0  & j == n + 1) #3rd condition
+    {
+      
+      j = n - 1
+      i =  1 
+    }
+    else
+    {
+      
+      if (j == n + 1)
+      j = 1
+      
+      if (i < 1)
+        i = n 
+    }
+    if (a[i, j] != 0) #2nd
+    {
+      j <- j - 2
+      i <- i + 1
+      
+      next()
+    
+        
+    }
+    else{
+      a[i, j] = num
+      num <- num + 1
+    
+      
+    }
+    
+    j <- j + 1
+    i <- i - 1
+    
+    
+  }
+  print(a)
+ 
+
+```
+
+#### 2nd question
+
+$a = (a_1, a_2, ..., a_{13})$
+Using a code which calculate all the permutations of the vector "a" that have the condition mentioned in the question. At the end, there is only one permutation which has all the conditions:  
+```{r echo = FALSE , include= TRUE}
+n <- 13
+for (i in 1:n){ #a13
+  for (j in 1:n){ #a12
+    if(i != j) {
+      for(k in 1 : n) { #a11
+        if(k != i & k != j) {
+          for(t in 1 : n) {  #a10
+            if(t != k & t != i & t != j){
+              if((k + j) / (j + i) == (j + i) /(i + t) & (k + j) / (j + i) < 1)  {
+                for(l in 1 : n) { #a9
+                  if(l != t & l != k & l != j & l != i ) {
+                    for(m in 1 : n) { #a8
+                      
+                     if(m != l & m != t & m != k & m != j & m != i) {
+                        for(o in 1 : n) { #a7
+                          if(o != m & o != l & o != t & o != k & o != j & o != i) {
+                            for(p in 1 : n) #a6 {
+                              if(p != o & p != m & p != l & p != t & p != k & p != j & p != i) {
+                                for(q in 1 : n) #a5
+                                  if(q != i & q != j & q != k & q != t & q != l & q != m & q != o & q != p) {
+                                    if(((p / (p + o)) == ((p + o) / (o + m + l))) & (p / (p + o)) == ((o + m + l) / (q + l + t))){
+                                      if(p / (p + o) < 1) {
+                                        for(r in 1 : n) #a4{
+                                          if(r != i & r != j & r != k & r != t & r != l & r != m & r != o & r != p & r != q) {
+                                            for(s in 1 : n) #a3 {
+                                              if(s != i & s != j &s != k & s != t & s != l & s != m & s != o & s != p & s != q & s != r) {
+                                                for(u in 1 : n) { #a2
+                                                  if(u != i & u != j &u != k & u != t & u != l & u != m & u != o & u != p & u != q & u != r & u != s) {
+                                                    for(w in 1 : n) { #a1
+                                                      if(w != i & w != j & w != k & w != t & w != l & w != m & w != o & w != p & w != q & w != r & w != s & w != u) {
+                                                        if(w / (u + s) == (u + s) / (s + r + q) & (w / (u + s))< 1) { 
+                                                          x <- c(w, u, s, r, q,  p, o, m, l, t , k , j , i)
+                                                          print(x)
+                                                          
+                                                        }
+                                                      } 
+                                                    }
+                                                  } 
+                                                }
+                                              }
+                                          }
+                                  }
+                                    
+                                  }
+                              }
+                              }
+                          }
+                        }
+                        }
+                      }
+                    }
+                  }
+                }
+              
+            }                
+          }
+        }
+      }
+      
+    }
+  }
+}
+
+
+
+```
+
+#### 3rd question
+a) We have to check $2^{16}$ states to find all the possible number of liares.In this code, if a person is lying, he is presented with $0$, otherwise he is presented with $1$. </br>
+All the possible number of liares are: 
+```{r echo = FALSE, include= TRUE}
+  n <- 2 ^ 16
+  count <- 0
+  a <- integer(16)
+  ways <- integer(3)
+  for(i in 0 : n) {
+    check <- FALSE
+    check2 = FALSE
+    number <- i
+    for(j in 1 : 16) {
+      if(number %% 2 == 0) {
+        a[j] <- 0
+        number <- number / 2
+      }
+      else{
+        a[j] <- 1
+        number <- number - 1
+        number <- number / 2
+      }
+      
+    }
+    for(j in 2 : 15) {
+      if(a[j] == 1){
+        if(!(a[j - 1] == 0 & a[j + 1] == 0)){
+          check2 = TRUE
+          break()
+        }
+      }
+      if(a[j] == 0) {
+        if(a[j - 1] == 0 & a[j + 1] == 0){
+          check2 = TRUE
+          break()
+        }
+          
+      }
+    }
+
+    if(check2 == FALSE){
+      if(a[1] == 1){
+        if(a[2] == 0 & a[16] == 0){
+          check = TRUE
+        }
+      }
+        else if(a[1] == 0) {
+          if(!(a[2] == 0 & a[16] == 0)) {
+            if(a[16] == 0) {
+              if(a[15] == 1) {
+                check = TRUE
+              }
+            }
+            if(a[16] == 1 & a[15] == 0)
+              check = TRUE
+          }
+        }
+    }
+    if(check == TRUE) {
+
+      count <- 0
+      for(j in 1 : 16){
+        if(a[j] == 0) {
+          count <- count + 1
+        }
+      }
+      for(i in 1 : 3) {
+        if(ways[i] == count){
+          break()
+        }
+        if(ways[i] == 0){
+          ways[i] <- count
+          break()
+        }
+        
+          
+      }
+      
+      
+    }
+    
+  }
+  print(ways)
+
+```
+b) We have two states: </br>
+1. Every one is lying. </br>
+number of liares = 12 </br>
+2. At least one person is telling the truth, so we can calculate the number of liares using the code below:</br>
+```{r echo = TRUE, include = TRUE}
+a[1] <- 1 #at least one of them is telling the truth
+a[2] <- 1
+counter <- 0
+for(i in 2 : 12) {
+  if(a[i] == 1) {
+    if(a[i - 1] == 1) {
+      a[i + 1] <- 0
+      counter <- counter + 1
+    }
+    else{
+      a[i + 1] <- 1
+    }
+  }
+  else{
+    if(a[i - 1] == 1) {
+      a[i + 1] = 1
+    }
+    else{
+      a[i + 1] <- 0
+      counter <- counter + 1
+    }
+  }
+}
+print(counter)
+```
+c) For every person( every number which is one or zero), I check two conditions: </br>
+A: The person claims that one of the people sitting beside him is telling the truth and the other one is lying. <br>
+B: The person claims that people sitting beside him are both liares. </br>
+After checking all possible $2^8$ states, the number of liares can be: 
+```{r echo = FALSE, include = TRUE}
+A <- 0
+B <- 0
+C <- 0
+n <- 2 ^ 8
+a <- integer(8)
+t <- 0
+ways <- integer(5)
+counter <- 0 
+check1 <- FALSE
+check2 <- FALSE
+condition <- FALSE
+for(i in 0 : n) {
+  A <- 0
+  B <- 0
+  C <- 0
+  counter <- 0
+  check1 <- FALSE
+  check2 <- FALSE
+  number <- i
+  for(j in 1 : 8) {
+    if(number %% 2 == 0) {
+      a[j] <- 0
+      number <- number / 2
+    }
+    else{
+      a[j] <- 1
+      number <- number - 1
+      number <- number / 2
+    }
+  }
+  for(j in 2 : 8){
+    if(j + 1 != 9) {
+      t <- j + 1
+    }
+    else {
+      t <- 1
+    }
+    con <- (a[j] == 1)
+    if(con) {
+      condition <-(a[t] + a[j - 1] == 1)
+      if(condition) {
+        A <- A + 1
+      }
+      else if(a[j - 1] == 0 & a[t] == 0) {
+        B <- B + 1
+      }
+      else{
+        
+        break()
+      }
+    }
+    if(a[j] == 0) {
+      condtion <- (a[j - 1] + a[t] == 1)
+      #A 
+      if(condition) {
+        C <- C + 1
+      }
+      #B
+      else if((a[j - 1] == 0 & a[t] == 0)) {
+        A <- A + 1
+      }
+      else if(a[j - 1] + a[t] == 1) {
+        B <- B + 1
+      }
+      else {
+        break()
+      }
+    }
+    check1 <- TRUE
+    if(check1) {
+      if(a[1] == 1) {
+        #A 
+        if((a[2] == 1 & a[8] == 0) | (a[2] == 0 & a[8] == 1)) {
+          check2 <- TRUE
+          A <- A + 1
+        }
+        else if(a[2] == 0 & a[8] == 0) {
+          check2 <- TRUE
+          B <- B + 1
+        }
+      }
+      else {
+        #A
+        if(a[2] + a[8] == 2) {
+          check2 <- TRUE
+          C <- C + 1
+        }
+        else if((a[2] == 0 & a[8] == 0)) {
+          check2 <- TRUE
+          A <- A + 1
+        }
+        else if(a[2] + a[8] == 1) {
+          check2 <- TRUE
+          B <- B + 1
+        }
+      }
+      if(A == 4 & B == 4 & check2 == TRUE) {
+        for(j in 1 : 8) {
+          if(a[j] == 0)
+            counter <- counter + 1
+        }
+      }
+      else if(check2 == TRUE & A < 4 & B < 4 & C > 0) {
+        for(k in 0 : C) {
+          if(A + k == 4 & B + C - k == 4) {
+            for(j in 1 : 8) {
+              if(a[j] == 0)
+                counter <- counter + 1
+            }
+            for(i in 1 : 5) {
+              if(ways[i] == counter){
+                break()
+              }
+              if(ways[i] == 0){
+                ways[i] <- counter
+                break()
+              }
+              
+              
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  
+}
+print(ways)
+```
+
+P.S. </br>
+All codes are included in the zip file.
