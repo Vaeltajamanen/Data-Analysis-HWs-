@@ -1,0 +1,815 @@
+---
+title: "Cluster Analysis"
+subtitle: "WDI Indicators"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+
+> <p dir="RTL"> 
+با توجه به داده بانک جهانی به سوالات زیر پاسخ دهید. برای استفاده از داده از سه فایل زیر استفاده نمایید.
+داده نام کشورها: WDICountry
+داده نام سری های زمانی: WDISeries
+داده کل: WDIData
+در صورتی که داده را در اختیار ندارید می توانید از بسته WDI استفاده نموده و داده های مورد نظر را استخراج نمایید.
+</p>
+
+***
+
+<p dir="RTL">
+۱. ده کشور فقیر دنیا را بیابید. نمودار درآمد روزانه آنها را رسم کنید. چند درصد از اعضای این کشورها زیر خط فقر هستند؟ متوسط عمر در این کشورها چقدر است؟
+</p>
+```{r echo = F, include=TRUE, warning=F, error=FALSE, message=FALSE}
+library(WDI)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(highcharter)
+library(ggplot2)
+```
+
+
+```{r echo = T, include=TRUE, warning=F, error=FALSE, message=FALSE}
+series = read_csv("data/WDISeries.csv")
+cntry = read_csv("data/cntry.csv")
+investment = read_csv("data/Foreign investment inflow.csv")
+WDI_data$country -> countries
+countries %>% data.frame() -> countries
+secondaryIncome = WDI(country = 'all', indicator = "BM.TRF.PRVT.CD")
+poverty = WDI(country = 'all', indicator = "SI.POV.NAHC")
+life_exceptancy = WDI(country = "all", indicator = "SP.DYN.LE00.IN")  
+health_expenditure = WDI(country = "all", indicator = "SH.XPD.CHEX.GD.ZS")
+```
+
+
+
+```{r echo = F, include=TRUE, warning=F, error=FALSE, message=FALSE}
+
+poverty %>% 
+  drop_na() %>% 
+  group_by(country) %>% 
+  summarise(povertyPercent = mean(SI.POV.NAHC)) %>%
+  arrange(desc(povertyPercent)) -> average_poverty
+
+secondaryIncome %>%
+  drop_na() %>% 
+  filter(country %in% average_poverty$country) %>% 
+  group_by(country) %>% 
+  dplyr::summarise(numberOfYears = n(), incomeSum = sum(BM.TRF.PRVT.CD)) %>% 
+  mutate(daily = incomeSum / (numberOfYears * 365)) %>% 
+  arrange(daily) %>% 
+  filter(daily != 0) -> countries_daily_income
+  
+average_poverty %>% 
+  full_join(countries_daily_income) %>% 
+  drop_na() %>% 
+  arrange((daily)) %>% 
+  head(10) -> topPoorest
+
+topPoorest %>% 
+  arrange(desc(daily)) %>% 
+  hchart(hcaes(x = country, y = daily, color = country), type = "bar")%>% hc_add_theme(hc_theme_gridlight())
+
+topPoorest %>% 
+  select(country, povertyPercent)
+
+life_exceptancy %>% 
+  drop_na() %>% 
+  filter(country %in% topPoorest$country) %>% 
+  group_by(country) %>% 
+  summarise(life_exceptancy_average = mean(SP.DYN.LE00.IN))
+
+
+
+```
+
+<p dir="RTL">
+۲. تراژدی روآندا: بر اساس داده های امید به زندگی ابتدا نمودار سالانه نمودار جعبه ایی امید به زندگی کشورها را رسم نمایید(در یک نمودار!). سپس سری زمانی امید به زندگی روآندا را به آن اضافه کنید. چه می بینید؟ چند میلیون نفر کشته شدند؟
+</p>
+<p dir="RTL">
+بالغ بر 20 میلیو نفر کشته شدند.
+</p>
+```{r echo = F, include=T, warning=F, message=F, error=F}
+life_exceptancy_2 <- read_csv("data/LifeExpectancyatBirth(Total)_Compact.csv")
+life_exceptancy_2 %>% 
+  filter(country.name == "Rwanda" & year >= 1970) -> Rwanda
+
+geom_line(data = Rwanda, aes(x = year, y = value), color = "blue", size = 1) -> Rwanda_plot
+
+
+life_exceptancy_2 %>% 
+  drop_na() %>% 
+  filter(year >= 1970) %>% 
+  ggplot() + 
+  geom_boxplot(aes(x = year, y = value, group = year, fill = as.factor(year))) + 
+  Rwanda_plot + 
+  theme_minimal()
+
+
+
+Rwanda[20, 4] - Rwanda[21, 4]
+```
+
+
+<p dir="RTL">
+۳. نمودار امید به زندگی و هزینه های بهداشتی را رسم کنید. چه نتیجه ایی می گیرید؟
+</p>
+
+<p dir="RTL">
+امید به زندگی با هزینه های بهداشتی رابطه مستقیم دارد. برای بهتر نشان دادن این موضوع نیز از آزمون فرض
+cor.test
+استفاده شده است.
+</p>
+```{r echo = F, include=T, message=F, warning=F, error=F}
+health_expenditure %>% 
+  full_join(life_exceptancy) %>% 
+  drop_na() ->  life_health
+ 
+life_health %>% 
+  ggplot(aes(x = SP.DYN.LE00.IN, y = SH.XPD.CHEX.GD.ZS)) + geom_point(color = "orange", alhpa = 0.6) + geom_smooth(method = "lm", color = "purple") +
+   xlab("life expenctancy") + ylab("health expenditure") +
+  theme_minimal()
+  
+cor.test(life_health$SH.XPD.CHEX.GD.ZS, life_health$SP.DYN.LE00.IN)
+```
+
+<p dir="RTL">
+۴. آیا قدرت خرید خانواده های ایرانی در ۵۰ سال اخیر افزایش یافته است؟ برای این کار از داده های اقتصادی خانوار استفاده کنید.
+</p>
+<p dir="RTL">
+از داده درامد خانواده های ایرانی استفاده کردیم.
+ابتدا نموداری کشیده شده است که رابطه درامد را با سال نشان میدهد.
+سپس با استفاده از آزمون فرض
+cor.test
+نشان دادیم که درامد با سال در ارتباط بوده و در سال های آخر درامد ایرانی ها افزایش یافته است.
+</p>
+```{r echo = F, include=T, message=F, error=F, warning=F}
+Income <- read_csv("data/incomeWithProjection.csv")
+
+Income %>% 
+  filter(`GDP per capita PPP, with projections` == "Iran") %>% 
+  select(`1968` : `2018`) -> IranIncome
+
+
+IranIncome %>% 
+  gather(key = "year", value = "income") -> IranIncome
+
+
+
+ggplot(data = IranIncome, aes(x = as.numeric(year), y = as.numeric(income))) + 
+  geom_point(color = "violet", alpha = 0.7 , size = 4) + 
+  geom_smooth(method = "lm", color = "darkred") +
+  theme_minimal()
+
+
+cor.test(IranIncome$year %>% as.numeric(), IranIncome$income %>% as.numeric())
+```
+
+
+<p dir="RTL">
+۵. رشد اقتصادی ایران را با کشورهای دیگر در طول ۲۰ سال گذشته بر حسب بیست شاخص های اقتصادی مهم مانند تولید ناخالص ملی، تورم و … ارزیابی کنید! (برای هر شاخص از تصویرسازی استفاده کنید.)
+</p>
+
+<p dir="RTL">
+به دلیل اینکه داده های
+WDI
+فقط شامل 5 سال اخیر هستند از داده های سایت
+GapMinder
+استفاده کردیم. البته برای قسمت 
+Education
+از داده های کتابخانه
+WDI
+استفاده کردیم.
+</p>
+
+
+```{r echo=F, include=T, message=F, warning=F, error=F}
+files = list.files("data/indices")
+n = length(files)
+indices = list()
+final_df = data.frame()
+for(i in 1 : n) {
+  df = read_csv(paste0("data/indices/", files[i]))
+  
+  colnames(df) -> cnames
+  
+  j = which(cnames == "1998")
+  
+  index <- cnames[1]
+  
+  df %>% 
+    select(1 , j : length(cnames)) -> df
+  
+  df %>% 
+    gather(year, index , -1) -> df
+  
+  colnames(df) = c("country", "year", index)
+  
+  indices[[i]] = df
+  
+  if(i == 1) {
+    final_df = df
+  }
+  
+  else{
+    final_df = full_join(final_df, df)
+  }
+}
+ 
+for(i in 1 : n) {
+  colnames(final_df)[i + 2] -> index
+  
+  temp <- final_df %>%
+    select(1, 2 , i + 2) %>% 
+    filter(year <= 2018 & year >= 1998) %>% 
+    drop_na() 
+  
+  colnames(temp) <- c("country", "year", "value")
+  
+  temp %>% 
+    mutate(value = round(as.integer(value),0)) -> temp
+  
+  temp %>% filter(country == "Iran") -> Iran
+  if(nrow(Iran) != 0) {
+  geom_line(data = Iran, aes(x = as.numeric(year), y = as.numeric(value)), color = "red", size = 2) -> IranPlot
+  print(
+    ggplot() + 
+      geom_boxplot(data = temp, aes(x = as.numeric(year), y = as.numeric(value), group = year, fill = as.factor(year))) +
+      IranPlot + 
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      ylab(index)
+  )
+  }
+}
+
+```
+***
+
+<p dir="RTL">
+۶. در قسمت قبل با استفاده از روش خوشه بندی k-means داده ها را به سه دسته تقسیم کنید. ایران در کدام دسته می گنجد؟ (پیش از خوشه بندی طبیعتا داده را باید پاکسازی و استاندارد سازی نمایید.)
+</p>
+<p dir="RTL">
+به دلیل اینکه داده مورد نظر 
+NA
+زیاد داشت از این تکنینک استفاده کردیم که خانه های 
+NA
+را برابر با میانگین ستون قرار دادیم.
+</p>
+```{r echo F , include = T , warning=F, error=F, message=F}
+sapply(final_df[, -1], as.numeric) -> final_df_no_country
+imputeTS::na.mean(final_df_no_country) ->final_df_no_country
+
+
+final_df_no_country %>% as.data.frame() -> final_df_no_country
+final_df_no_country$country = final_df$country
+
+final_df_no_country %>% 
+  select(-year) %>% 
+  group_by(country) %>% 
+  summarise_all(funs(mean)) -> final_df_no_country
+
+final_df_no_country$country -> countries
+
+
+final_df_no_country %>% select(-country) %>% 
+  mutate_if(is.numeric, scale) -> normalized_final_df
+
+
+normalized_final_df %>% 
+  as.matrix() -> final_df_mat
+
+row.names(final_df_mat) <- countries
+#algorithm tajamoyi :
+
+kcl = kmeans(final_df_mat,centers = 3)
+kcl
+
+```
+
+
+<p dir="RTL">
+۷. به وسیله تحلیل مولفه اصلی بعد داده رو به دو کاهش دهید سپس خوشه های به دست آمده در قسمت قبل را بر روی آن نمایش دهید. آیا عملکرد روش خوشه بندی شما مطلوب بوده است؟
+</p>
+<p dir="RTL">
+مشاهده میشود که پس از اعمال
+pca
+رتبه بندی ایران تغییر نکرده است اما بسیاری از کشور ها دچار تغییر رتبه شده اند. به عبارت دیگر بعد از 
+pca
+این رتبه بندی ها دقیق تر شده اند.
+</p>
+
+```{r echo = F, include=T, message=F, error=F, warning=F}
+library(ggbiplot)
+index_pca = prcomp(final_df_no_country %>% select(-country), center = T, scale. = T)
+
+index_pca$x %>% 
+  as.data.frame() %>% 
+  select(1,2) -> index_after_pca
+  
+
+index_after_pca %>% as.matrix() -> index_after_pca
+
+row.names(index_after_pca) <- countries
+
+kcl = kmeans(index_after_pca,centers = 3)
+kcl
+
+ggbiplot(index_pca,
+         groups = as.factor(kcl$cluster))
+
+
+```
+<p dir="RTL">
+۸. با استفاده از داده روشی برای پیش بینی رشد اقتصادی ایران در سال آینده ارائه دهید.
+</p>
+<p dir="RTL">
+البتدا شاخص رشد اقتصادی کشور هارا استخراج کردیم سپس با استفاده از دیگر شاخص های اقتصادی به دست آمده در قسمت
+قبل و با استفاده از مدل
+h2o.glm
+سعی کردیم مدلی برای رشد اقتصادی ایران بیابیم. 
+البته چون داده های ما تعداد زیادی 
+NA
+دارند، تنها داده های سال های1965تا 2009 را توانستیم استفاده کنیم.
+مدل ساخته شده در زیر قابل مشاهده است.
+</p>
+```{r echo = F, include=T, warning=F, error=F, message=F}
+
+files = list.files("data/indices")
+n = length(files)
+indices = list()
+final_df_full = data.frame()
+for(i in 1 : n) {
+  df = read_csv(paste0("data/indices/", files[i]))
+  
+  colnames(df) -> cnames
+  
+  
+  index <- cnames[1]
+  
+  df %>% 
+    gather(year, index , -1) -> df
+  
+  colnames(df) = c("country", "year", index)
+  
+  if(i == 1) {
+    final_df_full = df
+  }
+  
+  else{
+    final_df_full = full_join(final_df_full, df)
+  }
+}
+
+
+economic_growth = read_csv("data/indicator pwt gdp_pc_past_10yr_growth.csv")
+economic_growth %>% 
+  mutate(country = X1) %>% 
+  select(-X1) %>% 
+  gather("year", "economic growth", -country) %>%
+  mutate(country = ifelse(country == "Iran, Islamic Rep.", "Iran", country)) %>% 
+  full_join(final_df_full) %>% 
+  filter(country == "Iran") -> Iran_economic_growth
+
+
+Iran_economic_growth %>% select(-`Cross sectors aid (% of total aid)`, -`Education aid (% of total aid)`, -`Female long-term unemployment (%)`,
+                                -`GDP per working hour, (constant 1990$)`, -`Government and civil society aid (% of total aid)`,
+                                -`Health aid (% of total aid)`, 
+                                -`Male 15-64 labour to population (%)`, -`Nuclear production, per person (toe)`, -`ODA aid per person (constant 2007 US$)`,
+                                -`Water and sanitation aid (% of total aid)`, -`Total reserves (% of total external debt)`, -X1
+                                , -`GDP per capita growth (annual %)`) -> Iran_economic_growth
+
+Iran_economic_growth %>% 
+  filter(year >= 1965 & year <= 2009) -> Iran_economic_growth
+
+sapply(Iran_economic_growth[, -1], as.numeric) -> Iran_economic_growth
+imputeTS::na.mean(Iran_economic_growth) %>% as.data.frame() %>% 
+  select(-year) ->Iran_economic_growth
+
+
+library(h2o)
+h2o.init()
+hIran = as.h2o(Iran_economic_growth)
+h2o.glm(training_frame = hIran, y = "economic growth", x = colnames(Iran_economic_growth %>% select(-1)), family = "gaussian" , nfolds = 5) -> model
+
+
+paste0("MSE:  ",h2o.mse(model, xval = T) %>% as.character()) %>% print()
+
+summary(model)
+```
+
+
+<p dir="RTL"> 
+۹. سوالهای ۵ تا ۷ را ابتدا برای ۲۰ شاخص سلامت سپس بر حسب ۲۰ شاخص آموزشی تکرار کنید.
+</p>
+<p dir="RTL"> 
+سوال 5 برای شاخص های سلامت
+</p>
+```{r echo = F, include = T, warning=F, error=F , message=F}
+files = list.files("data/health")
+n = length(files)
+final_df_2 = data.frame()
+for(i in 1 : n) {
+  df = read_csv(paste0("data/health/", files[i]))
+  
+  colnames(df) -> cnames
+  
+  j = which(cnames == "1998")
+  
+  index <- cnames[1]
+  
+  df %>% 
+    select(1 , j : length(cnames)) -> df
+  
+  df %>% 
+    gather(year, index , -1) -> df
+  
+  colnames(df) = c("country", "year", index)
+  if(i == 1) {
+    final_df_2 = df
+  }
+  else{
+    final_df_2 = full_join(final_df_2, df)
+  }
+}
+final_df_2 %>%
+  filter(!is.na(country)) -> final_df_2
+for(i in 1 : n) {
+  colnames(final_df_2)[i + 2] -> index
+  
+  temp <- final_df_2 %>%
+    select(1, 2 , i + 2) %>% 
+    filter(year <= 2018 & year >= 1998) %>% 
+    drop_na() 
+  
+  colnames(temp) <- c("country", "year", "value")
+  
+  temp %>% 
+    mutate(value = round(as.integer(value),0)) -> temp
+  
+  temp %>% filter(country == "Iran") -> Iran
+  if(nrow(Iran) != 0) {
+    geom_line(data = Iran, aes(x = as.numeric(year), y = as.numeric(value)), color = "red", size = 2) -> IranPlot
+    print(
+      ggplot() + 
+        geom_boxplot(data = temp, aes(x = as.numeric(year), y = as.numeric(value), group = year, fill = as.factor(year))) +
+        IranPlot + 
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        ylab(index)
+    )
+  }
+  
+}
+```
+<p dir="RTL"> 
+سوال 6 برای شاخص های سلامت
+</p>
+```{r echo = F, include = T, message = F, warning=F}
+sapply(final_df_2[, -1], as.numeric) -> final_df_no_country_2
+imputeTS::na.mean(final_df_no_country_2) ->final_df_no_country_2
+
+
+final_df_no_country_2 %>% as.data.frame() -> final_df_no_country_2
+final_df_no_country_2$country = final_df_2$country
+
+final_df_no_country_2 %>% 
+  select(-year) %>% 
+  group_by(country) %>% 
+  summarise_all(funs(mean)) -> final_df_no_country_2
+
+final_df_no_country_2$country -> countries
+
+
+final_df_no_country_2 %>% select(-country) %>% 
+  mutate_if(is.numeric, scale) -> normalized_final_df_2
+
+
+normalized_final_df_2 %>% 
+  as.matrix() -> final_df_mat_2
+
+row.names(final_df_mat_2) <- countries
+#algorithm tajamoyi :
+
+kcl = kmeans(final_df_mat_2,centers = 3)
+kcl
+plot(normalized_final_df %>% select(1,5,6,11,4,15,14),col = kcl$cluster,pch = 20,cex = 2)
+```
+<p dir="RTL"> 
+سوال 7 برای شاخص سلامت
+</p>
+```{r echo = F, include=T, warning=F, message=F, error=F}
+index_pca_2 = prcomp(final_df_no_country_2 %>% select(-country), center = T, scale. = T)
+
+index_pca_2$x %>% 
+  as.data.frame() %>% 
+  select(1,2) -> index_after_pca_2
+
+
+index_after_pca_2 %>% as.matrix() -> index_after_pca_2
+
+row.names(index_after_pca_2) <- countries
+
+kcl = kmeans(index_after_pca_2,centers = 3)
+kcl
+
+ggbiplot(index_pca_2,
+         groups = as.factor(kcl$cluster))
+
+
+```
+<p dir="RTL"> 
+سوال 5 برای شاخص تحصیلات
+</p>
+```{r echo = F, include=T, message=F, error=F, warning=F}
+library(stringr)
+
+education = list()
+final_df_3 = data.frame()
+series %>%
+  filter(str_detect(Topic,"Education")) %>% 
+  select(`Series Code`, `Indicator Name`) -> education_indicators
+for(i in 1 : 30) {
+  WDI(country = "all", indicator = education_indicators[i, 1]) -> df
+  df %>% 
+    select(-iso2c) -> df
+  colnames(df) <- c("country", education_indicators[i, 1], "year")
+  if(i == 1) {
+    final_df_3 = df
+  }
+  else{
+    final_df_3 = full_join(final_df_3, df)
+  }
+  
+}
+
+
+
+for(i in 1 : n) {
+  colnames(final_df_3 %>% select(-country, -year))[i] -> index
+  ylabel = education_indicators[i, 2]$`Indicator Name`
+  
+  temp <- final_df_3 %>%
+    select(country, year , index) %>% 
+    filter(year <= 2018 & year >= 1998) %>% 
+    drop_na() 
+  
+  colnames(temp) <- c("country", "year", "value")
+  
+  temp %>% 
+    filter(country %in% cntry$country) %>% 
+    mutate(value = round(as.integer(value),0)) -> temp
+  
+  temp %>% filter(str_detect(country, "Iran")) -> Iran
+  if(nrow(Iran) != 0) {
+    geom_line(data = Iran, aes(x = as.numeric(year), y = as.numeric(value)), color = "red", size = 2) -> IranPlot
+    print(
+      ggplot() + 
+        geom_boxplot(data = temp, aes(x = as.numeric(year), y = as.numeric(value), group = year, fill = as.factor(year))) +
+        IranPlot + 
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        ylab(index)
+    )
+  }
+}
+```
+<p dir="RTL"> 
+سوال 6 برای شاخص تحصیلات
+</p>
+```{r echo = F, include=T, warning=F, message=F, error=F}
+sapply(final_df_3[, -1], as.numeric) -> final_df_no_country_3
+imputeTS::na.mean(final_df_no_country_3) ->final_df_no_country_3
+
+
+final_df_no_country_3 %>% as.data.frame() -> final_df_no_country_3
+final_df_no_country_3$country = final_df_3$country
+
+final_df_no_country_3 %>% 
+  select(-year) %>% 
+  group_by(country) %>% 
+  summarise_all(funs(mean)) -> final_df_no_country_3
+
+final_df_no_country_3$country -> countries
+
+
+final_df_no_country_3 %>% select(-country) %>% 
+  mutate_if(is.numeric, scale) -> normalized_final_df_3
+
+
+normalized_final_df_3 %>% 
+  as.matrix() -> final_df_mat_3
+
+row.names(final_df_mat_3) <- countries
+#algorithm tajamoyi :
+
+kcl = kmeans(final_df_mat_3,centers = 3)
+kcl
+
+```
+<p dir="RTL"> 
+سوال 7 برای شاخص تحصیلات
+</p>
+```{r echo = F, include=T, warning=F, message=F, error=F}
+
+index_pca_3 = prcomp(final_df_no_country_3 %>% select(-country), center = T, scale. = T)
+
+index_pca_3$x %>% 
+  as.data.frame() %>% 
+  select(1,2) -> index_after_pca_3
+
+
+index_after_pca_3 %>% as.matrix() -> index_after_pca_3
+
+row.names(index_after_pca_3) <- countries
+
+kcl = kmeans(index_after_pca_3,centers = 3)
+kcl
+
+ggbiplot(index_pca_3,
+         groups = as.factor(kcl$cluster))
+
+
+```
+<p dir="RTL"> 
+۱۰. کشورهای دنیا را بر حسب ۶۰ شاخص اقتصادی، سلامت و آموزش با روش سلسله مراتبی خوشه بندی کرده و دندروگرام آن را رسم نمایید. اگر داده ها بر سه دسته تقسیم شوند ایران در کدام دسته می گنجد؟
+</p>
+<p dir="RTL"> 
+چون امکان نمایش دادن هر 250 کشور زمین را نداریم، تنها ده درصد ازین کشور ها به علاوه ایران را بر روی نمودار نمایش میدهیم.
+</p>
+
+
+```{r echo = F, include=T, message=F, warning=F, error=F}
+full_join(final_df %>% 
+            select(-`Health aid (% of total aid)`), final_df_2) %>% 
+  full_join(final_df_3 %>% 
+              dplyr::mutate(country = ifelse(str_detect(country, "Iran"), "Iran", country), year = as.character(year))) %>% 
+  filter(year <= 2018) -> full_df
+
+full_df %>% 
+  filter(country %in% final_df$country) -> full_df
+
+sapply(full_df[, -1], as.numeric) -> full_df_no_country
+imputeTS::na.mean(full_df_no_country) -> full_df_no_country
+
+
+full_df_no_country %>% as.data.frame() -> full_df_no_country
+full_df_no_country$country = full_df$country
+
+full_df_no_country %>% 
+  select(-year) %>% 
+  group_by(country) %>% 
+  summarise_all(funs(mean)) -> full_df_no_country
+
+full_df_no_country$country -> countries
+
+
+full_df_no_country %>% select(-country) %>% 
+  mutate_if(is.numeric, scale) -> normalized_full_df
+
+
+normalized_full_df %>% 
+  as.matrix() -> full_df_mat
+
+row.names(full_df_mat) <- countries
+#algorithm tajamoyi :
+
+include_list <- c("Iran")
+subset(full_df_mat, rownames(full_df_mat) %in% include_list) -> Iran
+
+full_df_mat %>% subset(!rownames(.) %in% include_list) %>% 
+  as.data.frame() %>% 
+  sample_frac(0.1) %>% 
+  as.matrix() -> test
+
+rbind(test, Iran) -> test
+
+dist_1 = stats::dist(test,method = "euclidean")
+clus = hclust(dist_1,method = "complete")
+plot(clus,hang = -1)
+rect.hclust(clus, 3)
+```
+***
+
+<p dir="RTL"> 
+۱۱. سه یافته جالب از داده ها استخراج کنید.
+</p>
+<p dir="RTL"> 
+سعی میکنیم با پردازش داده تاثیرات جنگ 8 ساله ایران و عراق را بر وضع زندگی مردم ایران نشان دهیم. این جنگ از سال 1980 شروع شد و تا سال 1988 ادامه یافت. همچنین انقلاب اسلامی ایران یکسال قبل یعنی سال 1979 به پیروزی رسید.
+</p>
+<p dir="RTL"> 
+ابتدا تاثیر جنگ را بر روی میزان امید به زندگی ایرانی ها میسنجیم. مشاهده میشود که با شروع جنگ امید به زندگی
+ایرانی ها 4 سال کاهش یافته است.
+</p>
+```{r echo = F, include=T, error=F, message=F, warning=F}
+life_exceptancy_2 %>% 
+  filter(country.name == "Iran") %>% 
+  hchart(hcaes(x = year, y = value), type = "line", color = "purple")%>% 
+  hc_add_theme(hc_theme_gridlight())
+```
+<p dir="RTL"> 
+همچنین نمودار درامد سالانه ایرانی ها رسم شده است. شاهد کاهش درامد در سال های آغازی انقلاب هستیم. در چند سال اخیر نیز درامد روند افزایشی داشته است.
+</p>
+```{r echo = F, include = T, message=F, error=F, warning=F}
+Income %>% 
+  filter(`GDP per capita PPP, with projections` == "Iran") %>% 
+  gather("year", "income", -1) %>% 
+  hchart(hcaes(x = year, y = income), type = "line", color = "purple") %>% 
+  hc_add_theme(hc_theme_gridlight())
+```
+<p dir="RTL"> 
+حال سعی میکنیم وضعیت واردات و صادرات ایران را مورد بررسی قرار بدهیم.ابتدا با کشیدن نمودار و آزمون فرض غیر پارامتریک 
+wilcoxon
+صادرات و واردات را در سال های مختلف مقایسه کردیم. فرض صفر این آزمون عبارت است از یکسان بودن توزیع واردات و صادرات که با توجه به
+p-value
+به دست آمده نتوانستیم این فرض را رد کنیم. پس نمیتوان در مورد ایران نتیجه گرفت که واردات از صادرات به طور چشمگیری بیشتر است و برعکس
+</p>
+```{r echo = F, include = T, warning=F, error=F, message=F}
+export = read_csv("data/Exports (p of GDP).csv")
+import = read_csv("data/Imports (p of GDP).csv")
+
+export %>% 
+  filter(`Exports of goods and services (% of GDP)` == "Iran") %>% 
+  gather("year", "export", -1) -> iran_export
+colnames(iran_export) <- c("Country", "Year", "Export")
+
+import %>% 
+  filter(`Imports of goods and services (% of GDP)` == "Iran") %>% 
+  gather("year", "import", -1) -> iran_import
+colnames(iran_import) <- c("Country", "Year","Import")
+
+
+full_join(iran_export, iran_import) %>% 
+  drop_na() -> iran_import_export
+  
+wilcox.test(as.numeric(iran_import_export$Export), as.numeric(iran_import_export$Import), paired = T)  
+  
+iran_import_export %>% 
+  hchart(hcaes(x = Import, y = Export), type = "line", color = "purple")%>% 
+  hc_add_theme(hc_theme_gridlight())
+```
+<p dir="RTL"> 
+نمودار زیر نیز بیانگر صادرات و واردات ایران در 60 سال گذاشته است
+</p>
+```{r echo = F, include = T, warning=F, error=F, message=F}
+iran_import_export %>% 
+  gather("action", "value", -Country, -Year) %>%  
+  mutate(value = round(as.numeric(value))) %>% 
+  ggplot(aes(x = Year, y = value)) + geom_bar(aes(fill = action), stat = "identity", position = "fill") + 
+  scale_fill_manual(values=c("#F41945", "#208ADA", "#56B4E9")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5)) 
+```
+<p dir="RTL"> 
+نمودار زیر نیز نشان دهنده میزان سرمایه گذاری ایرانی ها در خارج از کشور است. 
+</p>
+```{r echo = F, include = T, warning=F, error=F, message=F}
+
+
+investment %>% 
+  filter(`Foreign direct investment, net inflows (% of GDP)` == "Iran") %>% 
+  gather("year", "value", -1) %>% 
+  drop_na() %>% 
+  hchart(hcaes(x = as.numeric(year), y = as.numeric(value)), type = "line", color = "purple")
+  
+```
+<p dir="RTL"> 
+در زیر سعی میکنیم میزان سرمایه گذاری ایرانی ها را پیشبینی کنیم. 
+</p>
+<p dir="RTL"> 
+توقع داریم میزان سرمایه گذاری با مواردی مثل میزان واردات و صادرات کشور و درامد مردم دارای ارتباط باشد. سعی میکنیم این ارتباط را به صورت خطی مدل کنیم. 
+</p>
+
+```{r echo = T, include = T, warning=F, error=F, message=F}
+
+investment %>% 
+  filter(`Foreign direct investment, net inflows (% of GDP)` == "Iran") %>% 
+  gather("year", "value", -1) -> Iran_investment
+  
+colnames(Iran_investment) = c("Country", "Year", "Investment")
+
+Income %>% 
+  filter(`GDP per capita PPP, with projections` == "Iran") %>% 
+  gather("year", "income", -1) -> IranIncome
+colnames(IranIncome) = c("Country", "Year", "Income")
+
+
+full_join(IranIncome, iran_import_export) %>% 
+  full_join(Iran_investment) -> Iran_economy
+Iran_economy %>% drop_na() -> Iran_economy
+
+
+Iran_economy %>% head(5)
+model = lm(data = Iran_economy , formula = as.numeric(Investment) ~ as.numeric(Income) + as.numeric(Import) + as.numeric(Export)) 
+summary(model)
+```
+<p dir="RTL"> 
+مشاهده میشود که میزان سرمایه گذاری در خارج را نمیتوان با این 3 فاکتور اصلی اقتصادی مدل کرد و در مورد ایران شاید باید شرایط اجتماعی و سیاسی را در این مورد دخیل دانست.
+</p>
+
+
