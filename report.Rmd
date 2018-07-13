@@ -1,0 +1,415 @@
+---
+title: "Association rules"
+subtitle: "Movie recommender systems"
+author: "Aida Ramezani 95105595"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+> <p dir="RTL"> 
+با استفاده از داده نظرهای فیلم به سوالات زیر پاسخ دهید.
+</p>
+
+***
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(highcharter)
+library(ggplot2)
+library(corrplot)
+library(kableExtra)
+library(arules)
+library(arulesViz)
+
+movies1 = read_lines("data/movies.dat") %>% 
+  str_replace_all("::", "\036") %>%
+  paste(collapse = "\n") %>%
+  read_delim(delim = "\036", escape_double = F, trim_ws = T,
+             col_names = c('MovieID', 'Title', 'Genres'))
+
+
+
+
+tag = read_delim("data/tags.dat", "::",
+                 col_names = c("UserID", NA, "MovieID", NA,"Tag",NA, "Timestamp"))
+
+tag %>% select(1,3,5,7) -> tag
+
+rating = read_delim("data/ratings.dat", "::",
+                    col_names = c("UserID", NA, "MovieID", NA,"Rating", NA, "Timestamp")
+)
+
+rating %>% select(1,3,5,7) -> rating
+
+```
+<p dir="RTL">
+۱. آماره های زیر را بیابید.
+الف. محبوب ترین فیلم کدام است؟
+ب. بیشترین نظرات درباره چه فیلمی داده شده است؟
+پ. منفورترین فیلم کدام است؟
+ت. تعداد فیلم های ساخته شده در هر سال
+ث. در هر سالی مردم به چه ژانری علاقه مند بوده اند.
+</p>
+<p dir="RTL">
+محبوب ترین فیلم بر اساس بیشترین امتیاز داده شده به فیلم انتخاب شده است. البته فیلم هایی در نظر گرفته شده اند که بیش از 10000 نفر به آن ها رای داده باشند.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+rating %>% 
+  select(MovieID, Rating) %>% 
+  group_by(MovieID) %>% 
+  summarise(averageRating = mean(Rating), number = n()) %>% 
+  filter(number > 10000) %>% 
+  arrange(desc(averageRating)) %>% 
+  head(1) %>% 
+  full_join(movies1) %>% 
+  drop_na() %>% 
+  select(Title, averageRating)
+```
+<p dir="RTL">
+فیلمی که بیشترین نظرات را داشته باشد با استفاده از دیتافریم
+tag
+انتخاب شده است.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+tag %>% 
+  group_by(MovieID) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  head(1) %>% 
+  full_join(movies1) %>% 
+  drop_na() %>% 
+  select(Title)
+```
+<p dir="RTL">
+منفور ترین فیلم، فیلمی است که پایین ترین امتیاز را داشته باشد. همچنین نظرات مردم در مورد این فیلم به صورت
+word cloud
+نشان داده شده است.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+rating %>% 
+  select(MovieID, Rating) %>% 
+  group_by(MovieID) %>% 
+  summarise(averageRating = mean(Rating), number = n()) %>% 
+  filter(number > 10000) %>% 
+  arrange((averageRating)) %>% 
+  head(1) -> most_hated_movie_title
+
+movies1 %>% 
+  filter(MovieID == most_hated_movie_title$MovieID)
+
+tag %>% 
+  filter(MovieID == most_hated_movie_title$MovieID) -> comments_about_the_most_hated_movie
+
+library(wordcloud2)
+comments_about_the_most_hated_movie %>% group_by(Tag) %>% summarise(n = n()) %>%
+  arrange(desc(n)) %>% head(200) -> hated_comments
+wordcloud2(hated_comments, size = 0.5, shape = "star")
+
+```
+<p dir="RTL">
+تعداد فیلم های ساخته شده در هر سال:
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+movies1 %>% 
+  mutate(year = str_replace(str_replace(str_extract(Title, "\\(\\d+\\)"), "\\)", ""), "\\(", "")) -> movies
+
+movies %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  drop_na() %>% 
+  arrange(desc(count)) %>% 
+  kable()%>%
+  kable_styling("striped", full_width = F) %>%
+  row_spec(0, angle = -45)
+
+```
+
+<p dir="RTL">
+ژانر های مورد علاقه در هر سال بر اساس میزان امتیاز مردم به فیلم های دارای آن ژانر انتخاب شده اند.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+separate_rows(movies, Genres, sep = "\\|") -> movies
+rating %>% 
+  group_by(MovieID) %>% 
+  summarise(averageRating = mean(Rating), count = n()) %>%
+  filter(count > 5000) %>% 
+  full_join(movies) %>% 
+  select(year, Genres, averageRating) %>% 
+  group_by(Genres, year) %>% 
+  summarise(averageRating = mean(averageRating, na.rm = T)) %>% 
+  drop_na() %>% 
+  ungroup() %>% 
+  group_by(year) %>% 
+  mutate(rank = rank(-averageRating, ties.method = "first")) %>% 
+  filter(rank == 1) %>% 
+  arrange(year) %>% 
+  select(-rank) %>% 
+  kable()%>%
+  kable_styling("striped", full_width = F) %>%
+  row_spec(0, angle = -45)
+
+```
+
+***
+
+<p dir="RTL">
+۲. ژانر فیلم ها را استخراج نمایید.  سپس آماره های زیر را استخراج نمایید.
+</p>
+<p dir="RTL">
+الف. نمودار ستونی تعداد فیلم های هر ژانر
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+movies %>% 
+  group_by(Genres) %>% 
+  summarise(count = n()) %>% 
+  filter(count > 1) %>% 
+  drop_na() %>% 
+  hchart(hcaes(x = Genres, y = count, color = Genres), type = "column")
+```
+<p dir="RTL">
+ابتدا تمام ژانر ها را در ستون های یک ماتریس گذاشته و به ازای هر فیلم، ژانر های آن را در ستون مربوطه
+1
+میگذاریم و در غیر این صورت
+0
+.
+سپس برای ماتریس به دست آمده نمودار همبستگی میکشیم.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+movies %>% 
+  mutate(hasGenre = 1) %>% 
+  group_by(Genres) %>% 
+  mutate(count = n()) %>% 
+  filter(count > 1) %>% 
+  drop_na() %>% 
+  ungroup() %>% 
+  select(-count) %>% 
+  spread(Genres, hasGenre, fill = 0) %>% 
+  select(-MovieID, -year, -Title) %>% 
+  cor(method = c("pearson", "kendall", "spearman")) %>% 
+  corrplot( order = "hclust", 
+           tl.col = "black", tl.srt = 45)
+```
+<p dir="RTL">
+متوسط امتیاز به هر ژانر:
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+rating %>% 
+  group_by(MovieID) %>% 
+  summarise(averageRating = mean(Rating)) %>% 
+  full_join(movies) %>% 
+  select(averageRating, Genres) %>% 
+  group_by(Genres) %>% 
+  filter(n() > 1) %>% 
+  summarise(averageRating = mean(averageRating)) %>% 
+  drop_na()
+```
+<p dir="RTL">
+دوران طلایی فیلم سازی، سالی است که در آن علاوه بر ساخت زیاد فیلم ها، میانگین امتیاز فیلم ها نیز بالا ترین باشد 
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+rating %>% 
+  group_by(MovieID) %>% 
+  summarise(averageRating = mean(Rating)) %>% 
+  full_join(movies) %>% 
+  select(year, averageRating) %>% 
+  group_by(year) %>% 
+  summarise(count = n(), averageRating = mean(averageRating, na.rm = T)) %>% 
+  drop_na() %>% 
+  arrange(desc(count)) %>% 
+  head(20) %>% 
+  slice(which.max(averageRating))
+
+```
+
+***
+
+<p dir="RTL">
+۳. نمودار ابر لغات را بر حسب کلمات عنوان فیلم ها رسم نمایید.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+library(stopwords)
+movies %>% 
+  mutate(Title = str_replace_all(Title,"\\(\\d+\\)", "" )) %>% 
+  mutate(Title = str_replace_all(Title,"[[:punct:]]", "")) %>% 
+  separate_rows(Title, sep = " ") %>% 
+  select(Title) %>%
+  group_by(Title) %>% 
+  summarise(count = n()) %>%
+  filter(count > 30 & !str_to_lower(Title) %in% stopwords::stopwords() & Title > "a" & !str_to_lower(Title) %in% stopwords("fr")) %>% 
+  wordcloud2(size = 0.8, shape = "circle")
+  
+
+
+
+
+```
+
+
+<p dir="RTL">
+فیلم
+No Country for Old Men
+که در صورت سوال ذکر شده است در لیست فیلم های داده وجود ندارد.
+</p>
+```{r echo = F, include = T, warning=FALSE, error=FALSE, message=FALSE}
+
+rating %>% 
+  full_join(movies1) %>% 
+  filter(Title == "Castle in the Sky (Tenkû no shiro Rapyuta) (1986)") -> castle
+
+
+rating %>% 
+  sample_frac(0.4) %>% 
+  inner_join(movies1) %>% 
+  rbind(castle) %>% 
+  group_by(UserID) %>% 
+  summarise(movies = list(c(Title))) -> basket
+
+
+new <- as(basket$movies, "transactions")
+
+
+grules <- apriori (data=new, parameter=list (supp=0.001,conf = 0.15,minlen=2), 
+                  appearance = list(default="rhs",lhs="Castle in the Sky (Tenkû no shiro Rapyuta) (1986)"),
+                  control = list (verbose=F)) # those who bought 'milk' also bought..
+
+rules_conf <- sort (grules, by="lift", decreasing=TRUE) # 'high-confidence' rules.
+inspect((rules_conf)[1:30])
+
+grules <- apriori (data=new, parameter=list (supp=0.001,conf = 0.15,minlen=2), 
+                   appearance = list(default="rhs",lhs="Cast Away (2000)"),
+                   control = list (verbose=F)) # those who bought 'milk' also bought..
+
+rules_conf <- sort (grules, by="lift", decreasing=TRUE) # 'high-confidence' rules.
+inspect((rules_conf)[1:30])
+
+
+grules <- apriori (data=new, parameter=list (supp=0.001,conf = 0.15,minlen=2), 
+                   appearance = list(default="rhs",lhs="Memento (2000)"),
+                   control = list (verbose=F)) # those who bought 'milk' also bought..
+
+rules_conf <- sort (grules, by="lift", decreasing=TRUE) # 'high-confidence' rules.
+inspect((rules_conf)[1:30])
+
+
+
+
+
+
+
+```
+
+***
+
+<p dir="RTL">
+۵. تمرین سخت: در گیت هاب برای خود اکانت درست کنید. همه تمرین های خود را آنجا بارگذاری کنید! و لینک آن را ارسال نمایید.
+</p>
+<p dir="RTL">
+[Data Analysis Homeworks](https://github.com/Vaeltajamanen/Data-Analysis-HWs-)
+</p>
+
+***
+
+<p dir="RTL">
+۶. پنج انتقاد از درس و نحوه تدریس را بیان کنید.
+</p>
+<p dir="RTL">
+بهتر بود وقت بیشتری برای تئوری مدل های آماری درس داده شده گذاشته میشد.
+</p>
+<p dir="RTL">
+با توجه به این که بخش اصلی در درس یک ساعت آخر گفته میشد، بهتر بود زمان کلاس به جای دو ساعت، یک ساعت و نیم باشد.
+</p>
+<p dir="RTL">
+جا داشت برای مبحث خوشه بندی وقت بیشتری گذاشته شود. با توجه به اینکه جلسه دوم این مبحث صرف معرفی سایت
+GapMinder
+شد.
+</p>
+<p dir="RTL">
+بهتر بود سوالات تمارین درس با ابهام کمتری بیان شوند. زمان زیادی از تمرین صرف رفع ابهام سوالات داده شده بود. 
+</p>
+<p dir="RTL">
+کلاس حل تمرین، به اندازه کافی مفید نبود. نداشتن آمادگی ذهنی در مورد مطالب آماری بیان شده سر کلاس و شاید فن بیان دستیار آموزشی مربوطه از دلایل آن باشد.
+</p>
+
+
+***
+
+<p dir="RTL">
+۷. پنج پیشنهاد برای بهتر شدن درس بیان کنید.
+<p dir="RTL">
+بهتر بود برای کلاس های حل تمرین، صفحاتی از کتاب منبع درس که قرار بود هر جلسه پوشش داده شوند بیان میشد تا دانش جویان با آمادگی ذهنی بیشتری به کلاس رفته و کلاس مفید تر واقع میشد.کنید.
+</p>
+<p dir="RTL">
+بقیه پیشنهادات هم همراه انتقادات در سوال قبل گفته شد.
+</p>
+
+
+***
+
+<p dir="RTL">
+۸. سه موضوع آماری جدید برای جایگزینی در سرفصل ها پیشنهاد دهید.
+</p>
+<p dir="RTL">
+Interval Estimation
+</p>
+<p dir="RTL">
+Power Analysis
+</p>
+
+<p dir="RTL">
+Time Series Analysis
+</p>
+
+
+***
+
+<p dir="RTL"> 
+۹. سه داده جالب برای کار در کلاس پیشنهاد دهید.
+</p>
+
+<p dir="RTL"> 
+[Accidents in France from 2005 to 2016](https://www.kaggle.com/ahmedlahlou/accidents-in-france-from-2005-to-2016)
+</p>
+
+<p dir="RTL"> 
+[Stack Overflow 2018 Developer Survey](https://www.kaggle.com/stackoverflow/stack-overflow-2018-developer-survey/data)
+</p>
+
+<p dir="RTL"> 
+[Global Terrorism Database](https://www.kaggle.com/START-UMD/gtd/data)
+</p>
+
+***
+
+<p dir="RTL"> 
+۱۰. چهار نکته مهمی که در کلاس یاد گرفتید را بیان کنید.
+</p>
+<p dir="RTL"> 
+مبحث 
+regression
+از مفید ترین مباحث مطرح شده در کلاس بود.
+هم تمارین و هم قسمت آپلود کردن در سایت
+kaggle
+تاثیر خیلی مثبتی بر روی آموزش این مبحث داشت.
+</p>
+
+<p dir="RTL"> 
+افراط و تفریط در مورد کار با
+pca
+</p>
+<p dir="RTL"> 
+برای کار با داده هایی که تعداد زیادی
+NA
+دارند بهتر است به جای حذف داده ها، آن هارا برابر با میانگین ستونشان قرار دهیم. از این تکنیک در تمرین 10 استفاده شد و نتایج نسبت به زمانی که داده ها دور ریخته میشدند تا حد بسیار خوبی، بهتر شد. (هنگام ساخت مدل خطی) برای پیشبینی رشد اقتصادی
+</p>
+<p dir="RTL"> 
+نحوه تشخیص دنباله تصادفی واقعی از ساختگی و پیدا کردن توزیع آن. در اصل پیدا کردن توزیع و
+p-value
+دنباله های متفاوت
+</p>
+
